@@ -1,0 +1,1 @@
+'use client';export default function Error({reset}:{reset:()=>void}){return <div className="card py-20 text-center"><h2 className="text-xl font-bold">مشکلی در نمایش اطلاعات رخ داد</h2><p className="mt-2 text-sm text-slate-500">لطفاً دوباره تلاش کنید. اطلاعات شما محفوظ است.</p><button onClick={reset} className="btn-primary mt-5">تلاش دوباره</button></div>}
