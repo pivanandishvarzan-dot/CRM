@@ -1,6 +1,6 @@
 import { isDemoMode, prisma } from '@/lib/prisma';
 import type { DataActor } from '@/lib/data-scope';
-import { applicantScope, contractScope, followupScope, propertyScope } from '@/lib/data-scope';
+import { applicantScope, contractScope, propertyScope } from '@/lib/data-scope';
 
 const STAGES = ['LEAD','CONTACTED','QUALIFIED','MATCHED','VISIT','NEGOTIATION','CONTRACT','WON'] as const;
 
@@ -10,7 +10,9 @@ function monthKey(date: Date) {
 
 export async function getAdvancedReports(actor: DataActor, from?: Date, to?: Date) {
   if (isDemoMode) {
-    const funnel = STAGES.map((stage, i) => ({ stage, count: Math.max(0, 16 - i * 2), conversionFromPrevious: i === 0 ? 100 : Math.max(10, 100 - i * 8) }));
+    const counts = STAGES.map((stage, i) => ({ stage, count: Math.max(0, 16 - i * 2) }));
+    const total = counts.reduce((sum, x) => sum + x.count, 0) || 1;
+    const funnel = counts.map(x => ({ ...x, shareOfPipeline: Math.round((x.count / total) * 100) }));
     return {
       range: { from: from?.toISOString() ?? null, to: to?.toISOString() ?? null },
       kpis: { avgDaysToContract: 12, staleProperties: 4, totalValue: 248.5, totalCommission: 2.48 },
@@ -28,18 +30,15 @@ export async function getAdvancedReports(actor: DataActor, from?: Date, to?: Dat
   }
 
   const dateFilter = from || to ? { gte: from, lte: to } : undefined;
-  const [applicants, contracts, properties, followups] = await Promise.all([
+  const [applicants, contracts, properties] = await Promise.all([
     prisma.applicant.findMany({ where: { ...applicantScope(actor), ...(dateFilter && { createdAt: dateFilter }) }, include: { agent: true } }),
     prisma.contract.findMany({ where: { ...contractScope(actor), ...(dateFilter && { contractDate: dateFilter }) }, include: { agent: true, applicant: true } }),
     prisma.property.findMany({ where: { ...propertyScope(actor), ...(dateFilter && { createdAt: dateFilter }) }, include: { agent: true, followups: { orderBy: { scheduledAt: 'desc' }, take: 1 } } }),
-    prisma.followup.findMany({ where: { ...followupScope(actor), ...(dateFilter && { createdAt: dateFilter }) }, select: { propertyId: true, scheduledAt: true } }),
   ]);
 
-  const funnel = STAGES.map((stage, index) => {
-    const count = applicants.filter(a => a.status === stage).length;
-    const prev = index === 0 ? count : applicants.filter(a => a.status === STAGES[index - 1]).length;
-    return { stage, count, conversionFromPrevious: index === 0 ? 100 : prev ? Math.round((count / prev) * 100) : 0 };
-  });
+  const stageCounts = STAGES.map(stage => ({ stage, count: applicants.filter(a => a.status === stage).length }));
+  const pipelineTotal = stageCounts.reduce((sum, x) => sum + x.count, 0) || 1;
+  const funnel = stageCounts.map(x => ({ ...x, shareOfPipeline: Math.round((x.count / pipelineTotal) * 100) }));
 
   const monthlyMap = new Map<string, { month: string; value: number; commission: number; contracts: number }>();
   for (const contract of contracts) {
