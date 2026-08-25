@@ -16,6 +16,7 @@ import {
   Settings,
   UserRoundSearch,
   Users,
+  Workflow,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -28,6 +29,7 @@ type NavItem = {
 
 const navigation: NavItem[] = [
   { href: '/', label: 'داشبورد', icon: LayoutDashboard },
+  { href: '/pipeline', label: 'Pipeline معاملات', icon: Workflow },
   { href: '/properties', label: 'ملک‌ها', icon: Building2 },
   { href: '/owners', label: 'مالک‌ها', icon: Users },
   { href: '/applicants', label: 'متقاضی‌ها', icon: UserRoundSearch },
