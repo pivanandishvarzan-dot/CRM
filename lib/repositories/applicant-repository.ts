@@ -9,6 +9,19 @@ const requestMap: Record<string, DealType> = {
   'رهن و اجاره': 'MORTGAGE_RENT',
 };
 
+export const pipelineStages = [
+  'LEAD',
+  'CONTACTED',
+  'QUALIFIED',
+  'MATCHING',
+  'VISIT',
+  'NEGOTIATION',
+  'CONTRACT',
+  'WON',
+] as const;
+
+export type PipelineStage = (typeof pipelineStages)[number];
+
 export type ApplicantInput = {
   name: string;
   phone: string;
@@ -27,7 +40,8 @@ export type ApplicantInput = {
 
 export async function listApplicants() {
   if (isDemoMode) {
-    return demoApplicants.map((item) => ({
+    const demoStages: PipelineStage[] = ['LEAD', 'CONTACTED', 'QUALIFIED', 'MATCHING', 'VISIT', 'NEGOTIATION'];
+    return demoApplicants.map((item, index) => ({
       id: String(item.id),
       name: item.name,
       phone: item.phone,
@@ -40,7 +54,7 @@ export async function listApplicants() {
       minRooms: null,
       requiredFeatures: [],
       urgency: item.urgency === 'فوری' ? 4 : item.urgency === 'زیاد' ? 3 : item.urgency === 'متوسط' ? 2 : 1,
-      status: 'ACTIVE',
+      status: demoStages[index % demoStages.length],
       notes: null,
       agent: { id: `demo-agent-${item.agent}`, name: item.agent },
     }));
@@ -62,7 +76,7 @@ export async function createApplicant(input: ApplicantInput) {
       propertyTypes: input.propertyTypes || [],
       requiredFeatures: input.requiredFeatures || [],
       urgency: input.urgency || 1,
-      status: 'ACTIVE',
+      status: 'LEAD',
       agent: { id: input.agentId || 'demo-agent', name: 'مشاور نمایشی' },
     };
   }
@@ -83,8 +97,19 @@ export async function createApplicant(input: ApplicantInput) {
       requiredFeatures: input.requiredFeatures || [],
       urgency: input.urgency || 1,
       notes: input.notes,
+      status: 'LEAD',
       agentId: input.agentId,
     },
+    include: { agent: true },
+  });
+}
+
+export async function updateApplicantStatus(id: string, status: PipelineStage) {
+  if (!pipelineStages.includes(status)) throw new Error('مرحله Pipeline معتبر نیست.');
+  if (isDemoMode) return { id, status };
+  return prisma.applicant.update({
+    where: { id },
+    data: { status },
     include: { agent: true },
   });
 }
