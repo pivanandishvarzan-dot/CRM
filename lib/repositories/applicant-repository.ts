@@ -13,6 +13,14 @@ export async function listApplicants(actor?: DataActor) {
   return prisma.applicant.findMany({ where: actor ? applicantScope(actor) : undefined, include: { agent: true }, orderBy: { createdAt: 'desc' } });
 }
 
+export async function getApplicant(id: string, actor?: DataActor) {
+  if (isDemoMode) {
+    const item = demoApplicants.find(x => String(x.id) === id);
+    return item ? { id: String(item.id), name: item.name, phone: item.phone, requestType: item.request, budgetMin: null, budgetMax: null, cities: ['تهران'], districts: [], propertyTypes: [], minRooms: null, requiredFeatures: [], urgency: item.urgency === 'فوری' ? 4 : item.urgency === 'زیاد' ? 3 : item.urgency === 'متوسط' ? 2 : 1, status: 'LEAD', notes: null, agent: { id: `demo-agent-${item.agent}`, name: item.agent } } : null;
+  }
+  return prisma.applicant.findFirst({ where: { id, ...(actor ? applicantScope(actor) : {}) }, include: { agent: true, contracts: { orderBy: { contractDate: 'desc' } }, followups: { orderBy: { scheduledAt: 'desc' }, take: 10 } } });
+}
+
 export async function createApplicant(input: ApplicantInput, actor?: DataActor) {
   if (isDemoMode) return { id: String(Date.now()), ...input, cities: input.cities || [], districts: input.districts || [], propertyTypes: input.propertyTypes || [], requiredFeatures: input.requiredFeatures || [], urgency: input.urgency || 1, status: 'LEAD', agent: { id: input.agentId || 'demo-agent', name: 'مشاور نمایشی' } };
   const scoped = actor ? forceAssignedAgent(actor, input) : input;
