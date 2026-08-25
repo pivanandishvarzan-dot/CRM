@@ -14,12 +14,17 @@ export async function createContract(input: ContractInput, actor?: DataActor) {
   if (isDemoMode) return { id: `demo-${Date.now()}`, number: input.number || `Q-${Date.now()}`, ...input };
   const scoped = actor ? forceAssignedAgent(actor, input) : input;
   if (!scoped.propertyId || !scoped.applicantId || !scoped.agentId) throw new Error('ملک، متقاضی و مشاور برای قرارداد الزامی هستند.');
+
   if (actor?.role === 'AGENCY_MANAGER') {
     const allowed = await prisma.user.findFirst({ where: { id: scoped.agentId, agencyId: actor.agencyId ?? '__none__' }, select: { id: true } });
     if (!allowed) throw new Error('FORBIDDEN');
   }
-  const property = await prisma.property.findFirst({ where: { id: scoped.propertyId, ...(actor ? contractScope(actor).agentId ? { agentId: scoped.agentId } : {} : {}) }, select: { id: true } });
-  const applicant = await prisma.applicant.findFirst({ where: { id: scoped.applicantId, agentId: scoped.agentId }, select: { id: true } });
+
+  const [property, applicant] = await Promise.all([
+    prisma.property.findFirst({ where: { id: scoped.propertyId, agentId: scoped.agentId }, select: { id: true } }),
+    prisma.applicant.findFirst({ where: { id: scoped.applicantId, agentId: scoped.agentId }, select: { id: true } }),
+  ]);
   if (!property || !applicant) throw new Error('FORBIDDEN');
+
   return prisma.contract.create({ data: { number: scoped.number || `Q-${Date.now()}`, type: scoped.type, amount: scoped.amount, commission: scoped.commission, contractDate: new Date(scoped.contractDate), status: scoped.status || 'DRAFT', notes: scoped.notes, propertyId: scoped.propertyId, applicantId: scoped.applicantId, agentId: scoped.agentId }, include: { property: true, applicant: true, agent: true } });
 }
