@@ -30,12 +30,12 @@ export default function LoginPage() {
           <div className="grid h-12 w-12 place-items-center rounded-xl bg-brand-600 text-white"><Building2 /></div>
           <div><h1 className="text-xl font-bold">ورود به خانه‌یار</h1><p className="text-sm text-slate-500">CRM مدیریت املاک</p></div>
         </div>
-        <label className="mb-2 block text-sm font-medium">ایمیل</label>
-        <input className="input mb-4" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-        <label className="mb-2 block text-sm font-medium">رمز عبور</label>
-        <input className="input mb-4" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-        {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-        <button className="btn-primary flex w-full items-center justify-center gap-2" disabled={loading}>
+        <label htmlFor="login-email" className="mb-2 block text-sm font-medium">ایمیل</label>
+        <input id="login-email" name="email" autoComplete="email" className="input mb-4" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+        <label htmlFor="login-password" className="mb-2 block text-sm font-medium">رمز عبور</label>
+        <input id="login-password" name="password" autoComplete="current-password" className="input mb-4" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+        {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        <button type="submit" className="btn-primary flex w-full items-center justify-center gap-2" disabled={loading}>
           <LogIn size={18} /> {loading ? 'در حال ورود...' : 'ورود'}
         </button>
         <div className="mt-5 rounded-xl bg-slate-50 p-3 text-xs leading-6 text-slate-500">
