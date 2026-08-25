@@ -1,0 +1,27 @@
+name: CRM CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEMO_MODE: 'true'
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/crm?schema=public'
+      AUTH_SECRET: 'ci-only-secret-ci-only-secret-ci-only-secret'
+      AUTH_TRUST_HOST: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:validate
+      - run: npm run prisma:generate
+      - run: npm run typecheck
+      - run: npm run build
