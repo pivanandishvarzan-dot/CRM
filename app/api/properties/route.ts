@@ -1,32 +1,27 @@
 import { NextResponse } from 'next/server';
 import { createProperty, listProperties } from '@/lib/repositories/property-repository';
 import { requireUser } from '@/lib/authz';
+import { apiError, finiteNumber, optionalId, optionalText, stringArray, text } from '@/lib/api-validation';
 
 export async function GET() {
-  try {
-    const user = await requireUser();
-    const properties = await listProperties(user);
-    return NextResponse.json({ data: properties });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'نیاز به ورود دارید.' }, { status: 401 });
-    console.error('GET /api/properties failed', error);
-    return NextResponse.json({ error: 'دریافت ملک‌ها با خطا مواجه شد.' }, { status: 500 });
-  }
+  try { return NextResponse.json({ data: await listProperties(await requireUser()) }); }
+  catch (error) { const out = apiError(error, 'دریافت ملک‌ها با خطا مواجه شد.'); return NextResponse.json({ error: out.message }, { status: out.status }); }
 }
 
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = await request.json();
-    if (!body?.title || !body?.type || !body?.deal || !body?.city || !body?.district) {
-      return NextResponse.json({ error: 'عنوان، نوع ملک، نوع معامله، شهر و منطقه الزامی هستند.' }, { status: 400 });
-    }
-    const property = await createProperty({ ...body, price: Number(body.price || 0), area: Number(body.area || 0), rooms: Number(body.rooms || 0), floor: body.floor === '' || body.floor == null ? undefined : Number(body.floor), age: body.age === '' || body.age == null ? undefined : Number(body.age), features: Array.isArray(body.features) ? body.features : [] }, user);
+    const property = await createProperty({
+      title: text(body.title, 'عنوان'), type: text(body.type, 'نوع ملک', 80), deal: text(body.deal, 'نوع معامله', 50),
+      status: optionalText(body.status, 50), city: text(body.city, 'شهر', 80), district: text(body.district, 'منطقه', 100), address: optionalText(body.address, 500),
+      price: finiteNumber(body.price, 'قیمت'), area: finiteNumber(body.area, 'متراژ', 1, 100000), rooms: finiteNumber(body.rooms ?? 0, 'تعداد اتاق', 0, 100),
+      floor: body.floor === '' || body.floor == null ? undefined : finiteNumber(body.floor, 'طبقه', -20, 300), age: body.age === '' || body.age == null ? undefined : finiteNumber(body.age, 'سن بنا', 0, 500),
+      features: stringArray(body.features), image: optionalText(body.image, 2000), ownerId: optionalId(body.ownerId), agentId: optionalId(body.agentId), code: optionalText(body.code, 100),
+    }, user);
     return NextResponse.json({ data: property }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'نیاز به ورود دارید.' }, { status: 401 });
-    if (error instanceof Error && error.message === 'FORBIDDEN') return NextResponse.json({ error: 'دسترسی مجاز نیست.' }, { status: 403 });
-    console.error('POST /api/properties failed', error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'ثبت ملک با خطا مواجه شد.' }, { status: 500 });
+    const out = apiError(error, 'ثبت ملک با خطا مواجه شد.');
+    return NextResponse.json({ error: out.message }, { status: out.status });
   }
 }
