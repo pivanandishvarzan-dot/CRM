@@ -6,34 +6,7 @@ export const defaultAutomationRules = [
   { key:'property-stale', name:'فایل بدون فعالیت', description:'اگر برای ملک فعال یا در مذاکره فعالیت جدیدی ثبت نشود.', type:'PROPERTY_STALE', thresholdDays:14, action:'ALERT', priority:2 },
   { key:'followup-overdue', name:'پیگیری عقب‌افتاده', description:'اگر زمان پیگیری بگذرد و تکمیل نشده باشد.', type:'FOLLOWUP_OVERDUE', thresholdDays:0, action:'ALERT_AND_TASK', priority:4 },
 ] as const;
-
-function requireAgency(actor: DataActor) {
-  if (actor.role === 'SYSTEM_ADMIN') throw new Error('AGENCY_REQUIRED');
-  if (!actor.agencyId) throw new Error('AGENCY_REQUIRED');
-  return actor.agencyId;
-}
-
-export async function ensureAutomationRules(actor: DataActor) {
-  if (isDemoMode) return defaultAutomationRules.map((x,i)=>({id:`demo-${i}`,...x,enabled:true,agencyId:actor.agencyId||'demo'}));
-  const agencyId = requireAgency(actor);
-  await Promise.all(defaultAutomationRules.map(rule => prisma.automationRule.upsert({
-    where: { agencyId_key: { agencyId, key: rule.key } },
-    create: { agencyId, ...rule },
-    update: {},
-  })));
-  return prisma.automationRule.findMany({ where:{agencyId}, orderBy:{createdAt:'asc'} });
-}
-
-export async function updateAutomationRule(id:string, input:{enabled?:boolean;thresholdDays?:number;action?:string;priority?:number}, actor:DataActor) {
-  if (actor.role === 'AGENT') throw new Error('FORBIDDEN');
-  if (isDemoMode) return {id,...input};
-  const agencyId = requireAgency(actor);
-  const existing = await prisma.automationRule.findFirst({where:{id,agencyId},select:{id:true}});
-  if(!existing) throw new Error('NOT_FOUND');
-  return prisma.automationRule.update({where:{id},data:{
-    ...(input.enabled!==undefined&&{enabled:input.enabled}),
-    ...(input.thresholdDays!==undefined&&{thresholdDays:Math.max(0,Math.min(365,input.thresholdDays))}),
-    ...(input.action!==undefined&&{action:input.action}),
-    ...(input.priority!==undefined&&{priority:Math.max(1,Math.min(4,input.priority))}),
-  }});
-}
+function requireAgency(actor: DataActor) { if(actor.role==='SYSTEM_ADMIN'||!actor.agencyId) throw new Error('AGENCY_REQUIRED'); return actor.agencyId; }
+export async function ensureAutomationRules(actor:DataActor){if(isDemoMode)return defaultAutomationRules.map((x,i)=>({id:`demo-${i}`,...x,enabled:true,agencyId:actor.agencyId||'demo',custom:false}));const agencyId=requireAgency(actor);await Promise.all(defaultAutomationRules.map(rule=>prisma.automationRule.upsert({where:{agencyId_key:{agencyId,key:rule.key}},create:{agencyId,...rule},update:{}})));return prisma.automationRule.findMany({where:{agencyId},orderBy:{createdAt:'asc'}})}
+export async function updateAutomationRule(id:string,input:{enabled?:boolean;thresholdDays?:number;action?:string;priority?:number},actor:DataActor){if(actor.role==='AGENT')throw new Error('FORBIDDEN');if(isDemoMode)return{id,...input};const agencyId=requireAgency(actor);const existing=await prisma.automationRule.findFirst({where:{id,agencyId},select:{id:true}});if(!existing)throw new Error('NOT_FOUND');return prisma.automationRule.update({where:{id},data:{...(input.enabled!==undefined&&{enabled:input.enabled}),...(input.thresholdDays!==undefined&&{thresholdDays:Math.max(0,Math.min(365,input.thresholdDays))}),...(input.action!==undefined&&{action:input.action}),...(input.priority!==undefined&&{priority:Math.max(1,Math.min(4,input.priority))})}})}
+export async function createAutomationRule(input:{name:string;description?:string;trigger:{event:string;delayHours?:number};conditions?:Array<{field:string;operator:string;value:string|number|boolean}>;action:string;priority:number;actionConfig?:Record<string,unknown>},actor:DataActor){if(actor.role==='AGENT')throw new Error('FORBIDDEN');if(isDemoMode)return{id:`demo-${Date.now()}`,key:`custom-${Date.now()}`,type:'CUSTOM',enabled:true,custom:true,...input};const agencyId=requireAgency(actor);const key=`custom-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;return prisma.automationRule.create({data:{agencyId,key,name:input.name,description:input.description,type:'CUSTOM',enabled:true,thresholdDays:Math.max(0,Math.ceil((input.trigger.delayHours||0)/24)),action:input.action,priority:Math.max(1,Math.min(4,input.priority)),trigger:input.trigger,conditions:input.conditions||[],actionConfig:input.actionConfig||{},custom:true}})}
