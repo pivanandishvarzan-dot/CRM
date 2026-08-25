@@ -3,6 +3,7 @@ import { applicants as demoApplicants } from '@/lib/demo-data';
 import { isDemoMode, prisma } from '@/lib/prisma';
 import type { DataActor } from '@/lib/data-scope';
 import { applicantScope, forceAssignedAgent } from '@/lib/data-scope';
+import { dispatchCRMEvent } from '@/lib/automation/event-dispatcher';
 
 export const pipelineStages = ['LEAD','CONTACTED','QUALIFIED','MATCHED','VISIT','NEGOTIATION','CONTRACT','WON'] as const;
 const requestMap: Record<string, DealType> = { فروش: 'SALE', خرید: 'SALE', اجاره: 'RENT', 'رهن و اجاره': 'MORTGAGE_RENT' };
@@ -30,16 +31,19 @@ export async function createApplicant(input: ApplicantInput, actor?: DataActor) 
     if (!allowedAgent) throw new Error('FORBIDDEN');
   }
   const applicant = await prisma.applicant.create({ data: { name: scoped.name, phone: scoped.phone, requestType: requestMap[scoped.requestType] || 'SALE', budgetMin: scoped.budgetMin, budgetMax: scoped.budgetMax, cities: scoped.cities || [], districts: scoped.districts || [], propertyTypes: scoped.propertyTypes || [], minRooms: scoped.minRooms, requiredFeatures: scoped.requiredFeatures || [], urgency: scoped.urgency || 1, notes: scoped.notes, agentId: scoped.agentId, status: scoped.status || 'LEAD' }, include: { agent: true } });
-  if (actor) await prisma.$transaction([
-    prisma.applicantStageHistory.create({ data: { applicantId: applicant.id, fromStage: null, toStage: applicant.status, changedById: actor.id } }),
-    prisma.activityLog.create({ data: { actorId: actor.id, action: 'APPLICANT_CREATED', entityType: 'APPLICANT', entityId: applicant.id, summary: `متقاضی ${applicant.name} ایجاد شد`, metadata: { stage: applicant.status } } }),
-  ]);
+  if (actor) {
+    await prisma.$transaction([
+      prisma.applicantStageHistory.create({ data: { applicantId: applicant.id, fromStage: null, toStage: applicant.status, changedById: actor.id } }),
+      prisma.activityLog.create({ data: { actorId: actor.id, action: 'APPLICANT_CREATED', entityType: 'APPLICANT', entityId: applicant.id, summary: `متقاضی ${applicant.name} ایجاد شد`, metadata: { stage: applicant.status } } }),
+    ]);
+    await dispatchCRMEvent({ name: 'APPLICANT_CREATED', actor, entityType: 'APPLICANT', entityId: applicant.id, assigneeId: applicant.agentId, href: `/applicants/${applicant.id}`, data: { urgency: applicant.urgency, status: applicant.status, requestType: applicant.requestType } });
+  }
   return applicant;
 }
 
 export async function updateApplicantStatus(id: string, status: string, actor?: DataActor) {
   if (isDemoMode) return { id, status };
-  const existing = await prisma.applicant.findFirst({ where: { id, ...(actor ? applicantScope(actor) : {}) }, select: { id: true, name: true, status: true } });
+  const existing = await prisma.applicant.findFirst({ where: { id, ...(actor ? applicantScope(actor) : {}) }, select: { id: true, name: true, status: true, urgency: true, agentId: true } });
   if (!existing) throw new Error('NOT_FOUND');
   if (existing.status === status) return prisma.applicant.findUnique({ where: { id }, include: { agent: true } });
   if (!actor) return prisma.applicant.update({ where: { id }, data: { status }, include: { agent: true } });
@@ -48,5 +52,6 @@ export async function updateApplicantStatus(id: string, status: string, actor?: 
     prisma.applicant.update({ where: { id }, data: { status }, include: { agent: true } }),
     prisma.activityLog.create({ data: { actorId: actor.id, action: 'PIPELINE_STAGE_CHANGED', entityType: 'APPLICANT', entityId: id, summary: `مرحله ${existing.name} از ${existing.status} به ${status} تغییر کرد`, metadata: { fromStage: existing.status, toStage: status } } }),
   ]);
+  await dispatchCRMEvent({ name: 'STAGE_CHANGED', actor, entityType: 'APPLICANT', entityId: id, assigneeId: existing.agentId, href: `/applicants/${id}`, data: { urgency: existing.urgency, status, fromStage: existing.status, toStage: status } });
   return updated;
 }
