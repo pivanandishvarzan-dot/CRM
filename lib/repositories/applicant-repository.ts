@@ -4,6 +4,7 @@ import { isDemoMode, prisma } from '@/lib/prisma';
 import type { DataActor } from '@/lib/data-scope';
 import { applicantScope, forceAssignedAgent } from '@/lib/data-scope';
 
+export const pipelineStages = ['LEAD','CONTACTED','QUALIFIED','MATCHED','VISIT','NEGOTIATION','CONTRACT','WON'] as const;
 const requestMap: Record<string, DealType> = { فروش: 'SALE', خرید: 'SALE', اجاره: 'RENT', 'رهن و اجاره': 'MORTGAGE_RENT' };
 
 export type ApplicantInput = { name: string; phone: string; requestType: string; budgetMin?: number; budgetMax?: number; cities?: string[]; districts?: string[]; propertyTypes?: string[]; minRooms?: number; requiredFeatures?: string[]; urgency?: number; notes?: string; agentId?: string; status?: string };
