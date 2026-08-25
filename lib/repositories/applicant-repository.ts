@@ -35,10 +35,10 @@ export async function updateApplicantStatus(id: string, status: string, actor?: 
   if (!existing) throw new Error('NOT_FOUND');
   if (existing.status === status) return prisma.applicant.findUnique({ where: { id }, include: { agent: true } });
   if (!actor) return prisma.applicant.update({ where: { id }, data: { status }, include: { agent: true } });
-  const [, result] = await prisma.$transaction([
+  const [, updated] = await prisma.$transaction([
     prisma.applicantStageHistory.create({ data: { applicantId: id, fromStage: existing.status, toStage: status, changedById: actor.id } }),
     prisma.applicant.update({ where: { id }, data: { status }, include: { agent: true } }),
     prisma.activityLog.create({ data: { actorId: actor.id, action: 'PIPELINE_STAGE_CHANGED', entityType: 'APPLICANT', entityId: id, summary: `مرحله ${existing.name} از ${existing.status} به ${status} تغییر کرد`, metadata: { fromStage: existing.status, toStage: status } } }),
   ]);
-  return result;
+  return updated;
 }
