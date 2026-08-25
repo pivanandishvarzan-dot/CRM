@@ -3,15 +3,23 @@ import { agents, applicants, contracts, followups, properties } from '@/lib/demo
 
 const PIPELINE = ['LEAD','CONTACTED','QUALIFIED','MATCHED','VISIT','NEGOTIATION','CONTRACT','WON'];
 
+function parseFaNumber(value: string) {
+  const fa = '۰۱۲۳۴۵۶۷۸۹';
+  const ar = '٠١٢٣٤٥٦٧٨٩';
+  const normalized = value
+    .replace(/[۰-۹]/g, d => String(fa.indexOf(d)))
+    .replace(/[٠-٩]/g, d => String(ar.indexOf(d)))
+    .replace(/[^0-9.]/g, '');
+  return Number(normalized) || 0;
+}
+
 function demoData() {
-  const pipelineCounts = PIPELINE.map((stage, index) => ({
-    stage,
-    count: Math.max(0, applicants.length - index),
-  }));
+  const pipelineCounts = PIPELINE.map((stage, index) => ({ stage, count: Math.max(0, applicants.length - index) }));
   return {
     kpis: {
       properties: properties.length,
       activeProperties: properties.filter(x => x.status === 'فعال').length,
+      negotiatingProperties: properties.filter(x => x.status === 'در مذاکره').length,
       applicants: applicants.length,
       urgentApplicants: applicants.filter(x => x.urgency === 'فوری').length,
       todayFollowups: followups.filter(x => x.time.includes('امروز')).length,
@@ -20,8 +28,8 @@ function demoData() {
       negotiations: properties.filter(x => x.status === 'در مذاکره').length,
       contracts: contracts.length,
       completedContracts: contracts.filter(x => x.status === 'تکمیل شده').length,
-      totalContractValue: contracts.reduce((sum, c) => sum + Number(String(c.amount).replace(/[^0-9.]/g, '')), 0),
-      totalCommission: contracts.reduce((sum, c) => sum + Number(String(c.commission).replace(/[^0-9.]/g, '')), 0),
+      totalContractValue: contracts.reduce((sum, c) => sum + parseFaNumber(String(c.amount)), 0),
+      totalCommission: contracts.reduce((sum, c) => sum + parseFaNumber(String(c.commission)), 0) / 1000,
       conversionRate: applicants.length ? Math.round((contracts.length / applicants.length) * 100) : 0,
     },
     pipeline: pipelineCounts,
@@ -38,28 +46,15 @@ export async function getDashboardAnalytics() {
   const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
   const todayEnd = new Date(now); todayEnd.setHours(23,59,59,999);
 
-  const [
-    propertyRows,
-    applicantRows,
-    followupRows,
-    contractRows,
-    recentProperties,
-  ] = await Promise.all([
+  const [propertyRows, applicantRows, followupRows, contractRows, recentProperties] = await Promise.all([
     prisma.property.findMany({ select: { status: true } }),
     prisma.applicant.findMany({ select: { status: true, urgency: true, agentId: true, agent: { select: { name: true } } } }),
     prisma.followup.findMany({
       select: { id: true, type: true, completed: true, scheduledAt: true, priority: true, title: true, assignee: { select: { name: true } } },
       orderBy: { scheduledAt: 'asc' },
     }),
-    prisma.contract.findMany({
-      include: { agent: { select: { id: true, name: true } } },
-      orderBy: { contractDate: 'desc' },
-    }),
-    prisma.property.findMany({
-      take: 5,
-      include: { owner: true, agent: true },
-      orderBy: { createdAt: 'desc' },
-    }),
+    prisma.contract.findMany({ include: { agent: { select: { id: true, name: true } } }, orderBy: { contractDate: 'desc' } }),
+    prisma.property.findMany({ take: 5, include: { owner: true, agent: true }, orderBy: { createdAt: 'desc' } }),
   ]);
 
   const pipeline = PIPELINE.map(stage => ({ stage, count: applicantRows.filter(x => x.status === stage).length }));
@@ -88,6 +83,7 @@ export async function getDashboardAnalytics() {
     kpis: {
       properties: propertyRows.length,
       activeProperties: propertyRows.filter(x => x.status === 'ACTIVE').length,
+      negotiatingProperties: propertyRows.filter(x => x.status === 'NEGOTIATING').length,
       applicants: applicantRows.length,
       urgentApplicants: applicantRows.filter(x => x.urgency >= 4).length,
       todayFollowups: todayFollowups.length,
@@ -103,9 +99,6 @@ export async function getDashboardAnalytics() {
     pipeline,
     recentProperties,
     urgentFollowups,
-    agents: Array.from(agentMap.values()).map(x => ({
-      ...x,
-      conversionRate: x.applicants ? Math.round((x.contracts / x.applicants) * 100) : 0,
-    })).sort((a,b) => b.value - a.value),
+    agents: Array.from(agentMap.values()).map(x => ({ ...x, conversionRate: x.applicants ? Math.round((x.contracts / x.applicants) * 100) : 0 })).sort((a,b) => b.value - a.value),
   };
 }
