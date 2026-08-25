@@ -8,12 +8,28 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: crm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d crm"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     env:
-      DEMO_MODE: 'true'
+      DEMO_MODE: 'false'
       DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/crm?schema=public'
       AUTH_SECRET: 'ci-only-secret-ci-only-secret-ci-only-secret'
       AUTH_TRUST_HOST: 'true'
+      SEED_PASSWORD: 'demo1234'
+      CI: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,7 +41,22 @@ jobs:
         run: npm run prisma:validate
       - name: Generate Prisma client
         run: npm run prisma:generate
+      - name: Apply database migrations
+        run: npm run prisma:migrate
+      - name: Seed test database
+        run: npm run prisma:seed
       - name: Typecheck
         run: npm run typecheck
       - name: Production build
         run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E security tests
+        run: npm run test:e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
