@@ -28,6 +28,7 @@ jobs:
       DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/crm?schema=public'
       AUTH_SECRET: 'ci-only-secret-ci-only-secret-ci-only-secret'
       AUTH_TRUST_HOST: 'true'
+      AUTH_URL: 'http://localhost:3000'
       SEED_PASSWORD: 'demo1234'
       CI: 'true'
     steps:
