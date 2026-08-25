@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import { compare } from 'bcryptjs';
 import { prisma, isDemoMode } from '@/lib/prisma';
 
 const demoUsers = [
@@ -7,16 +8,9 @@ const demoUsers = [
   { id: 'demo-agent', name: 'مشاور نمونه', email: 'agent@demo.local', role: 'AGENT' as const, agencyId: 'demo-agency' },
 ];
 
-async function verifyPassword(password: string, hash?: string | null) {
-  // Until a password-hashing dependency is added, production login only accepts
-  // records explicitly stored with the development "plain:" prefix.
-  // Replace this with bcrypt/argon2 before public deployment.
-  return Boolean(hash?.startsWith('plain:') && hash.slice(6) === password);
-}
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  session: { strategy: 'jwt' },
+  session: { strategy: 'jwt', maxAge: 60 * 60 * 12 },
   pages: { signIn: '/login' },
   providers: [
     Credentials({
@@ -28,7 +22,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const email = String(credentials?.email ?? '').trim().toLowerCase();
         const password = String(credentials?.password ?? '');
-        if (!email || !password) return null;
+        if (!email || password.length < 8) return null;
 
         if (isDemoMode) {
           const user = demoUsers.find(item => item.email === email);
@@ -37,7 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !(await verifyPassword(password, user.passwordHash))) return null;
+        if (!user?.passwordHash || !(await compare(password, user.passwordHash))) return null;
         return { id: user.id, name: user.name, email: user.email, role: user.role, agencyId: user.agencyId };
       },
     }),
