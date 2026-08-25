@@ -1,24 +1,22 @@
 import { NextResponse } from 'next/server';
 import { createContract, listContracts } from '@/lib/repositories/contract-repository';
 import { requireUser } from '@/lib/authz';
+import { apiError, dateTime, finiteNumber, optionalId, optionalText, text } from '@/lib/api-validation';
 
 export async function GET() {
-  try {
-    const user = await requireUser();
-    return NextResponse.json(await listContracts(user));
-  } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'نیاز به ورود دارید.' }, { status: 401 });
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'خطا در دریافت قراردادها' }, { status: 500 });
-  }
+  try { return NextResponse.json(await listContracts(await requireUser())); }
+  catch (error) { const out = apiError(error, 'خطا در دریافت قراردادها'); return NextResponse.json({ error: out.message }, { status: out.status }); }
 }
 
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    return NextResponse.json(await createContract(await request.json(), user), { status: 201 });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'نیاز به ورود دارید.' }, { status: 401 });
-    if (error instanceof Error && error.message === 'FORBIDDEN') return NextResponse.json({ error: 'دسترسی مجاز نیست.' }, { status: 403 });
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'خطا در ثبت قرارداد' }, { status: 400 });
-  }
+    const body = await request.json();
+    const contract = await createContract({
+      number: optionalText(body.number, 100), type: text(body.type, 'نوع قرارداد', 80), amount: finiteNumber(body.amount, 'مبلغ قرارداد'),
+      commission: finiteNumber(body.commission, 'کمیسیون'), contractDate: dateTime(body.contractDate, 'تاریخ قرارداد'), status: optionalText(body.status, 50),
+      notes: optionalText(body.notes, 2000), propertyId: optionalId(body.propertyId), applicantId: optionalId(body.applicantId), agentId: optionalId(body.agentId),
+    }, user);
+    return NextResponse.json(contract, { status: 201 });
+  } catch (error) { const out = apiError(error, 'خطا در ثبت قرارداد'); return NextResponse.json({ error: out.message }, { status: out.status }); }
 }
