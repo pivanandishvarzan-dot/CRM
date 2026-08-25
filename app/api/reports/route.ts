@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireRole } from '@/lib/authz';
 import { getAdvancedReports } from '@/lib/repositories/reports-repository';
+import { getPipelineHistoryMetrics } from '@/lib/repositories/activity-repository';
 import { apiError } from '@/lib/api-validation';
 
 function parseDate(value: string | null, end = false) {
@@ -15,7 +16,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const from = parseDate(url.searchParams.get('from'));
     const to = parseDate(url.searchParams.get('to'), true);
-    return NextResponse.json(await getAdvancedReports(user, from, to));
+    const [report, pipelineHistory] = await Promise.all([getAdvancedReports(user, from, to), getPipelineHistoryMetrics(user, from, to)]);
+    return NextResponse.json({ ...report, pipelineHistory });
   } catch (error) {
     const out = apiError(error, 'خطا در دریافت گزارش‌ها');
     return NextResponse.json({ error: out.message }, { status: out.status });
