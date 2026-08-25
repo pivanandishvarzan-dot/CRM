@@ -1,0 +1,84 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { FileSignature, Plus, Search } from 'lucide-react';
+import { Header } from './properties-view';
+import { Badge, Modal } from './ui';
+
+type RefRow = { id: string; name?: string; title?: string };
+type ContractRow = {
+  id: string; number?: string; type: string; amount?: number | string; amountValue?: number; commission?: number | string; commissionValue?: number;
+  contractDate?: string; date?: string; status: string; property?: RefRow; applicant?: RefRow; agent?: RefRow;
+};
+
+function numeric(value: unknown) { const n = Number(value); return Number.isFinite(n) ? n : Number(String(value ?? '').replace(/[^\d.]/g, '')) || 0; }
+function faDate(value?: string) { if (!value) return '—'; const d = new Date(value); return Number.isNaN(+d) ? value : new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium' }).format(d); }
+
+export default function ContractsView() {
+  const [rows, setRows] = useState<ContractRow[]>([]);
+  const [properties, setProperties] = useState<RefRow[]>([]);
+  const [applicants, setApplicants] = useState<RefRow[]>([]);
+  const [agents, setAgents] = useState<RefRow[]>([]);
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/contracts').then(r => r.json()), fetch('/api/properties').then(r => r.json()),
+      fetch('/api/applicants').then(r => r.json()), fetch('/api/agents').then(r => r.json()),
+    ]).then(([contractData, propertyData, applicantData, agentData]) => {
+      if (Array.isArray(contractData)) setRows(contractData);
+      if (Array.isArray(propertyData)) setProperties(propertyData.map(x => ({ id: String(x.id), title: x.title })));
+      if (Array.isArray(applicantData)) setApplicants(applicantData.map(x => ({ id: String(x.id), name: x.name })));
+      if (Array.isArray(agentData)) setAgents(agentData.map(x => ({ id: String(x.id), name: x.name })));
+    }).catch(() => setError('خطا در دریافت اطلاعات قراردادها'));
+  }, []);
+
+  const filtered = useMemo(() => rows.filter(row => `${row.number || row.id} ${row.property?.title || ''} ${row.applicant?.name || ''} ${row.agent?.name || ''}`.includes(query.trim())), [rows, query]);
+  const totalValue = useMemo(() => rows.reduce((sum, row) => sum + numeric(row.amountValue ?? row.amount), 0), [rows]);
+  const totalCommission = useMemo(() => rows.reduce((sum, row) => sum + numeric(row.commissionValue ?? row.commission), 0), [rows]);
+  const waiting = rows.filter(row => !['تکمیل شده','COMPLETED','SIGNED'].includes(row.status)).length;
+
+  async function addContract(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault(); setError(''); const f = new FormData(e.currentTarget);
+    const amount = Number(f.get('amount')) || 0; const commissionRate = Number(f.get('commissionRate')) || 1;
+    const payload = {
+      number: String(f.get('number') || '') || undefined, type: String(f.get('type') || 'مبایعه‌نامه'), amount,
+      commission: amount * commissionRate / 100, contractDate: String(f.get('contractDate') || ''), status: String(f.get('status') || 'DRAFT'),
+      propertyId: String(f.get('propertyId') || ''), applicantId: String(f.get('applicantId') || ''), agentId: String(f.get('agentId') || ''),
+      notes: String(f.get('notes') || '') || undefined,
+    };
+    const response = await fetch('/api/contracts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const result = await response.json(); if (!response.ok) { setError(result.error || 'ثبت قرارداد انجام نشد'); return; }
+    setRows(current => [result, ...current]); setOpen(false); e.currentTarget.reset();
+  }
+
+  return <>
+    <Header title="قراردادها و کمیسیون" sub="مدیریت معامله، طرفین، مبالغ و کمیسیون" action={() => setOpen(true)} label="قرارداد جدید" />
+    <div className="mb-5 grid gap-4 md:grid-cols-3">
+      <div className="card p-5"><p className="text-sm text-slate-500">ارزش قراردادها</p><b className="mt-2 block text-xl text-brand-700">{totalValue.toLocaleString('fa-IR')} میلیارد</b></div>
+      <div className="card p-5"><p className="text-sm text-slate-500">کمیسیون ثبت‌شده</p><b className="mt-2 block text-xl text-brand-700">{totalCommission.toLocaleString('fa-IR')} میلیارد</b></div>
+      <div className="card p-5"><p className="text-sm text-slate-500">در انتظار تکمیل</p><b className="mt-2 block text-xl text-brand-700">{waiting.toLocaleString('fa-IR')} قرارداد</b></div>
+    </div>
+    <div className="card mb-5 p-4"><div className="relative"><Search className="absolute right-3 top-3 text-slate-400" size={18}/><input value={query} onChange={e => setQuery(e.target.value)} className="input pr-10" placeholder="شماره قرارداد، ملک، متقاضی یا مشاور..."/></div></div>
+    <div className="card table-wrap"><table className="data-table"><thead><tr><th>شماره</th><th>ملک / متقاضی</th><th>نوع</th><th>مبلغ</th><th>کمیسیون</th><th>مشاور</th><th>تاریخ</th><th>وضعیت</th></tr></thead><tbody>
+      {filtered.map(row => <tr key={row.id}><td className="text-slate-500">{row.number || row.id}</td><td>{row.property?.id ? <Link href={`/properties/${row.property.id}`} className="font-bold hover:text-brand-700">{row.property.title}</Link> : <b>{row.property?.title || '—'}</b>}<small className="block text-slate-500">{row.applicant?.name || '—'}</small></td><td>{row.type}</td><td>{numeric(row.amountValue ?? row.amount).toLocaleString('fa-IR')} میلیارد</td><td>{numeric(row.commissionValue ?? row.commission).toLocaleString('fa-IR')} میلیارد</td><td>{row.agent?.name || '—'}</td><td>{faDate(row.contractDate || row.date)}</td><td><Badge tone={['تکمیل شده','COMPLETED','SIGNED'].includes(row.status) ? 'green' : 'amber'}>{row.status}</Badge></td></tr>)}
+    </tbody></table></div>
+    {error && <div className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+    <Modal open={open} onClose={() => setOpen(false)} title="ثبت قرارداد جدید"><form onSubmit={addContract} className="grid gap-4 md:grid-cols-2">
+      <div><label className="label">شماره قرارداد</label><input name="number" className="input" placeholder="اختیاری؛ خودکار ساخته می‌شود"/></div>
+      <div><label className="label">نوع قرارداد</label><select name="type" className="input"><option>مبایعه‌نامه</option><option>اجاره‌نامه</option><option>رهن و اجاره</option></select></div>
+      <div><label className="label">ملک</label><select required name="propertyId" className="input"><option value="">انتخاب کنید</option>{properties.map(x => <option key={x.id} value={x.id}>{x.title}</option>)}</select></div>
+      <div><label className="label">متقاضی / خریدار</label><select required name="applicantId" className="input"><option value="">انتخاب کنید</option>{applicants.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+      <div><label className="label">مشاور مسئول</label><select required name="agentId" className="input"><option value="">انتخاب کنید</option>{agents.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+      <div><label className="label">تاریخ قرارداد</label><input required name="contractDate" type="date" className="input"/></div>
+      <div><label className="label">مبلغ قرارداد (میلیارد)</label><input required name="amount" type="number" min="0" step="0.1" className="input"/></div>
+      <div><label className="label">نرخ کمیسیون (%)</label><input name="commissionRate" type="number" min="0" step="0.1" defaultValue="1" className="input"/></div>
+      <div><label className="label">وضعیت</label><select name="status" className="input"><option value="DRAFT">پیش‌نویس</option><option value="WAITING_SIGNATURE">در انتظار امضا</option><option value="SIGNED">امضا شده</option><option value="COMPLETED">تکمیل شده</option></select></div>
+      <div className="md:col-span-2"><label className="label">یادداشت</label><textarea name="notes" className="input h-24 py-3"/></div>
+      <button className="btn-primary md:col-start-2"><FileSignature size={17}/>ثبت قرارداد</button>
+    </form></Modal>
+  </>;
+}
