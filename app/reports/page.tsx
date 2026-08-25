@@ -1,1 +1,5 @@
-import {Reports} from '@/components/entity-pages';export default function Page(){return <Reports/>}
+import ReportsView from '@/components/reports-view';
+
+export default function Page(){
+  return <ReportsView/>;
+}
