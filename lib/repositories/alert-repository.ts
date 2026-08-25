@@ -1,28 +1,41 @@
 import { isDemoMode, prisma } from '@/lib/prisma';
 import type { DataActor } from '@/lib/data-scope';
 import { applicantScope, followupScope, propertyScope } from '@/lib/data-scope';
+import { ensureAutomationRules } from '@/lib/repositories/automation-repository';
 
 const DAY = 86400000;
 
 export async function refreshSmartAlerts(actor: DataActor) {
   if (isDemoMode) return [];
   const now = new Date();
-  const threeDaysAgo = new Date(now.getTime() - 3 * DAY);
-  const fourteenDaysAgo = new Date(now.getTime() - 14 * DAY);
+  const rules = await ensureAutomationRules(actor);
+  const byType = Object.fromEntries(rules.filter(r=>r.enabled).map(r=>[r.type,r]));
+  const pipelineRule = byType.PIPELINE_STALE;
+  const propertyRule = byType.PROPERTY_STALE;
+  const followupRule = byType.FOLLOWUP_OVERDUE;
+
   const [applicants, properties, overdue] = await Promise.all([
-    prisma.applicant.findMany({ where: { ...applicantScope(actor), status: { notIn: ['WON'] }, updatedAt: { lt: threeDaysAgo } }, select: { id:true,name:true,status:true,agentId:true,updatedAt:true } }),
-    prisma.property.findMany({ where: { ...propertyScope(actor), status: { in: ['ACTIVE','NEGOTIATING'] }, updatedAt: { lt: fourteenDaysAgo } }, select: { id:true,title:true,agentId:true,updatedAt:true } }),
-    prisma.followup.findMany({ where: { ...followupScope(actor), completed:false, scheduledAt:{ lt: now } }, select: { id:true,title:true,assigneeId:true,scheduledAt:true } }),
+    pipelineRule ? prisma.applicant.findMany({ where: { ...applicantScope(actor), status:{notIn:['WON']}, updatedAt:{lt:new Date(now.getTime()-pipelineRule.thresholdDays*DAY)} }, select:{id:true,name:true,status:true,agentId:true} }) : Promise.resolve([]),
+    propertyRule ? prisma.property.findMany({ where: { ...propertyScope(actor), status:{in:['ACTIVE','NEGOTIATING']}, updatedAt:{lt:new Date(now.getTime()-propertyRule.thresholdDays*DAY)} }, select:{id:true,title:true,agentId:true} }) : Promise.resolve([]),
+    followupRule ? prisma.followup.findMany({ where:{ ...followupScope(actor), completed:false, scheduledAt:{lt:new Date(now.getTime()-followupRule.thresholdDays*DAY)} }, select:{id:true,title:true,assigneeId:true,scheduledAt:true,applicantId:true,propertyId:true} }) : Promise.resolve([]),
   ]);
+
   const desired = [
-    ...applicants.map(x=>({key:`stale-applicant:${x.id}`,userId:x.agentId,type:'PIPELINE_STALE',severity:3,title:'متقاضی در Pipeline متوقف شده',message:`${x.name} بیش از ۳ روز در مرحله ${x.status} بدون تغییر مانده است.`,entityType:'APPLICANT',entityId:x.id,href:`/applicants/${x.id}`})),
-    ...properties.map(x=>({key:`stale-property:${x.id}`,userId:x.agentId,type:'PROPERTY_STALE',severity:2,title:'فایل نیازمند پیگیری',message:`برای ${x.title} بیش از ۱۴ روز فعالیت جدیدی ثبت نشده است.`,entityType:'PROPERTY',entityId:x.id,href:`/properties/${x.id}`})),
-    ...overdue.map(x=>({key:`overdue-followup:${x.id}`,userId:x.assigneeId,type:'FOLLOWUP_OVERDUE',severity:4,title:'پیگیری عقب‌افتاده',message:`${x.title} از زمان برنامه‌ریزی‌شده عبور کرده و هنوز تکمیل نشده است.`,entityType:'FOLLOWUP',entityId:x.id,href:'/followups'})),
+    ...applicants.map(x=>({key:`pipeline-stale:${x.id}`,userId:x.agentId,type:'PIPELINE_STALE',severity:pipelineRule.priority,title:'متقاضی در Pipeline متوقف شده',message:`${x.name} بیش از ${pipelineRule.thresholdDays} روز در مرحله ${x.status} بدون تغییر مانده است.`,entityType:'APPLICANT',entityId:x.id,href:`/applicants/${x.id}`,action:pipelineRule.action})),
+    ...properties.map(x=>({key:`property-stale:${x.id}`,userId:x.agentId,type:'PROPERTY_STALE',severity:propertyRule.priority,title:'فایل نیازمند پیگیری',message:`برای ${x.title} بیش از ${propertyRule.thresholdDays} روز فعالیت جدیدی ثبت نشده است.`,entityType:'PROPERTY',entityId:x.id,href:`/properties/${x.id}`,action:propertyRule.action})),
+    ...overdue.map(x=>({key:`followup-overdue:${x.id}`,userId:x.assigneeId,type:'FOLLOWUP_OVERDUE',severity:followupRule.priority,title:'پیگیری عقب‌افتاده',message:`${x.title} از زمان برنامه‌ریزی‌شده عبور کرده و هنوز تکمیل نشده است.`,entityType:'FOLLOWUP',entityId:x.id,href:'/followups',action:followupRule.action})),
   ];
+
   const visible = desired.filter(x => actor.role === 'SYSTEM_ADMIN' || x.userId === actor.id || actor.role === 'AGENCY_MANAGER');
-  await Promise.all(visible.map(item => prisma.alert.upsert({ where:{key:item.key}, create:item, update:{...item,resolvedAt:null} })));
+  for (const item of visible) {
+    const existing = await prisma.alert.findUnique({where:{key:item.key},select:{id:true,createdAt:true}});
+    await prisma.alert.upsert({where:{key:item.key},create:{key:item.key,userId:item.userId,type:item.type,severity:item.severity,title:item.title,message:item.message,entityType:item.entityType,entityId:item.entityId,href:item.href},update:{severity:item.severity,title:item.title,message:item.message,href:item.href,resolvedAt:null}});
+    if (!existing && item.action === 'ALERT_AND_TASK') {
+      await prisma.followup.create({data:{title:`پیگیری خودکار: ${item.title}`,type:'TASK',scheduledAt:now,priority:item.severity,completed:false,description:`[AUTO:${item.key}] ${item.message}`,assigneeId:item.userId}});
+    }
+  }
   const activeKeys = visible.map(x=>x.key);
-  await prisma.alert.updateMany({ where:{ userId: actor.role==='AGENT'?actor.id:undefined, resolvedAt:null, ...(activeKeys.length?{key:{notIn:activeKeys}}:{}) }, data:{resolvedAt:now} });
+  await prisma.alert.updateMany({where:{userId:actor.role==='AGENT'?actor.id:undefined,resolvedAt:null,...(activeKeys.length?{key:{notIn:activeKeys}}:{})},data:{resolvedAt:now}});
   return listAlerts(actor);
 }
 
