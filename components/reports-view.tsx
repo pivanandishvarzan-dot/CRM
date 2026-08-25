@@ -10,7 +10,7 @@ const labels: Record<string,string> = { LEAD:'سرنخ', CONTACTED:'تماس', Q
 
 type ReportData = {
   kpis: { avgDaysToContract:number; staleProperties:number; totalValue:number; totalCommission:number };
-  funnel: { stage:string; count:number; conversionFromPrevious:number }[];
+  funnel: { stage:string; count:number; shareOfPipeline:number }[];
   monthly: { month:string; value:number; commission:number; contracts:number }[];
   agents: { name:string; applicants:number; contracts:number; conversionRate:number; value:number; commission:number }[];
   staleProperties: { id:string; title:string; code:string; agent:string; lastActivityAt:string }[];
@@ -24,25 +24,25 @@ export default function ReportsView(){
   const [to,setTo]=useState('');
   const [error,setError]=useState('');
 
-  async function load(){
+  async function load(nextFrom = from, nextTo = to){
     setError('');
-    const params=new URLSearchParams(); if(from)params.set('from',from); if(to)params.set('to',to);
+    const params=new URLSearchParams(); if(nextFrom)params.set('from',nextFrom); if(nextTo)params.set('to',nextTo);
     try{ const r=await fetch(`/api/reports?${params}`); const j=await r.json(); if(!r.ok)throw new Error(j.error||'خطا'); setData(j); }
     catch(e){ setError(e instanceof Error?e.message:'خطا در دریافت گزارش'); }
   }
-  useEffect(()=>{load();},[]);
+  useEffect(()=>{load('','');},[]);
 
   const monthly = useMemo(()=>data?.monthly.map(x=>({...x,label:new Intl.DateTimeFormat('fa-IR-u-ca-persian',{month:'short',year:'2-digit'}).format(new Date(`${x.month}-01`))}))||[],[data]);
 
   if(!data&&!error) return <div className="card p-10 text-center text-sm text-slate-500">در حال آماده‌سازی گزارش‌ها...</div>;
 
   return <>
-    <Header title="گزارش‌های مدیریتی" sub="تحلیل عملکرد فروش، قیف تبدیل، کمیسیون و فایل‌های نیازمند پیگیری" />
+    <Header title="گزارش‌های مدیریتی" sub="تحلیل عملکرد فروش، وضعیت Pipeline، کمیسیون و فایل‌های نیازمند پیگیری" />
     <div className="card mb-4 flex flex-wrap items-end gap-3 p-4">
       <div><label className="label">از تاریخ</label><input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="input"/></div>
       <div><label className="label">تا تاریخ</label><input type="date" value={to} onChange={e=>setTo(e.target.value)} className="input"/></div>
-      <button onClick={load} className="btn-primary">اعمال فیلتر</button>
-      <button onClick={()=>{setFrom('');setTo('');setTimeout(load,0);}} className="btn-secondary">پاک‌کردن</button>
+      <button onClick={()=>load()} className="btn-primary">اعمال فیلتر</button>
+      <button onClick={()=>{setFrom('');setTo('');load('','');}} className="btn-secondary">پاک‌کردن</button>
     </div>
     {error&&<div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {data&&<>
@@ -54,11 +54,11 @@ export default function ReportsView(){
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <div className="card p-5"><h2 className="font-bold">تبدیل مرحله‌به‌مرحله Pipeline</h2><div className="mt-4 h-72" dir="ltr"><ResponsiveContainer><BarChart data={data.funnel.map(x=>({...x,label:labels[x.stage]||x.stage}))}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="label" tick={{fontSize:10}}/><YAxis/><Tooltip/><Bar dataKey="count" /></BarChart></ResponsiveContainer></div><div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">{data.funnel.map(x=><div key={x.stage} className="rounded-xl bg-slate-50 p-3 text-xs"><b>{labels[x.stage]||x.stage}</b><p className="mt-1 text-slate-500">تبدیل: {fa(x.conversionFromPrevious)}٪</p></div>)}</div></div>
+        <div className="card p-5"><h2 className="font-bold">توزیع فعلی Pipeline</h2><p className="mt-1 text-xs text-slate-500">برای نرخ تبدیل تاریخی دقیق، در مرحله بعد تاریخچه تغییر Stage ذخیره می‌شود.</p><div className="mt-4 h-72" dir="ltr"><ResponsiveContainer><BarChart data={data.funnel.map(x=>({...x,label:labels[x.stage]||x.stage}))}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="label" tick={{fontSize:10}}/><YAxis/><Tooltip/><Bar dataKey="count" /></BarChart></ResponsiveContainer></div><div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">{data.funnel.map(x=><div key={x.stage} className="rounded-xl bg-slate-50 p-3 text-xs"><b>{labels[x.stage]||x.stage}</b><p className="mt-1 text-slate-500">سهم از Pipeline: {fa(x.shareOfPipeline)}٪</p></div>)}</div></div>
         <div className="card p-5"><h2 className="font-bold">روند ماهانه ارزش قراردادها</h2><div className="mt-4 h-72" dir="ltr"><ResponsiveContainer><LineChart data={monthly}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="label" tick={{fontSize:10}}/><YAxis/><Tooltip/><Line type="monotone" dataKey="value" strokeWidth={3}/></LineChart></ResponsiveContainer></div></div>
       </div>
 
-      <div className="mt-4 card"><div className="p-5"><h2 className="font-bold">عملکرد مشاوران</h2></div><div className="table-wrap"><table className="data-table"><thead><tr><th>مشاور</th><th>متقاضی</th><th>قرارداد</th><th>نرخ تبدیل</th><th>ارزش</th><th>کمیسیون</th></tr></thead><tbody>{data.agents.map(a=><tr key={a.name}><td><b>{a.name}</b></td><td>{fa(a.applicants)}</td><td>{fa(a.contracts)}</td><td>{fa(a.conversionRate)}٪</td><td>{fa(a.value)}</td><td>{fa(a.commission)}</td></tr>)}</tbody></table></div></div>
+      <div className="mt-4 card"><div className="p-5"><h2 className="font-bold">عملکرد مشاوران</h2></div><div className="table-wrap"><table className="data-table"><thead><tr><th>مشاور</th><th>متقاضی</th><th>قرارداد</th><th>نرخ قرارداد/متقاضی</th><th>ارزش</th><th>کمیسیون</th></tr></thead><tbody>{data.agents.map(a=><tr key={a.name}><td><b>{a.name}</b></td><td>{fa(a.applicants)}</td><td>{fa(a.contracts)}</td><td>{fa(a.conversionRate)}٪</td><td>{fa(a.value)}</td><td>{fa(a.commission)}</td></tr>)}</tbody></table></div></div>
 
       <div className="mt-4 card"><div className="p-5"><h2 className="font-bold">فایل‌های نیازمند پیگیری</h2><p className="mt-1 text-xs text-slate-500">ملک‌هایی که بیش از ۱۴ روز از آخرین فعالیتشان گذشته است.</p></div><div className="divide-y">{data.staleProperties.map(p=><div key={p.id} className="flex flex-wrap items-center gap-3 p-4 text-sm"><div><b>{p.title}</b><p className="text-xs text-slate-500">{p.code} · {p.agent}</p></div><span className="mr-auto text-xs text-slate-500">{new Intl.DateTimeFormat('fa-IR-u-ca-persian').format(new Date(p.lastActivityAt))}</span><Link href={`/properties/${p.id}`} className="btn-secondary">باز کردن پرونده</Link></div>)}{!data.staleProperties.length&&<div className="p-8 text-center text-sm text-slate-500">فایل بدون پیگیری طولانی وجود ندارد.</div>}</div></div>
     </>}
