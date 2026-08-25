@@ -3,6 +3,7 @@ import { followups as demoFollowups } from '@/lib/demo-data';
 import { isDemoMode, prisma } from '@/lib/prisma';
 import type { DataActor } from '@/lib/data-scope';
 import { followupScope, forceAssignee } from '@/lib/data-scope';
+import { dispatchCRMEvent } from '@/lib/automation/event-dispatcher';
 
 const typeMap: Record<string, FollowupType> = { تماس: 'CALL', پیام: 'MESSAGE', جلسه: 'MEETING', بازدید: 'VISIT', یادآوری: 'REMINDER', وظیفه: 'TASK' };
 export type FollowupInput = { title: string; type: string; scheduledAt: string; priority?: number; completed?: boolean; description?: string; assigneeId?: string; ownerId?: string; applicantId?: string; propertyId?: string };
@@ -25,7 +26,12 @@ export async function createFollowup(input: FollowupInput, actor?: DataActor) {
 
 export async function setFollowupCompleted(id: string, completed: boolean, actor?: DataActor) {
   if (isDemoMode) return { id, completed };
-  const existing = await prisma.followup.findFirst({ where: { id, ...(actor ? followupScope(actor) : {}) }, select: { id: true } });
+  const existing = await prisma.followup.findFirst({ where: { id, ...(actor ? followupScope(actor) : {}) }, select: { id: true, title: true, type: true, priority: true, completed: true, assigneeId: true, applicantId: true } });
   if (!existing) throw new Error('NOT_FOUND');
-  return prisma.followup.update({ where: { id }, data: { completed } });
+  const updated = await prisma.followup.update({ where: { id }, data: { completed } });
+  if (actor && completed && !existing.completed) {
+    const eventName = existing.type === 'VISIT' ? 'VISIT_COMPLETED' : 'FOLLOWUP_COMPLETED';
+    await dispatchCRMEvent({ name: eventName, actor, entityType: 'FOLLOWUP', entityId: id, assigneeId: existing.assigneeId, href: '/followups', data: { priority: existing.priority, type: existing.type, applicantId: existing.applicantId ?? '', completed: true } });
+  }
+  return updated;
 }
