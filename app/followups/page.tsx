@@ -1,1 +1,5 @@
-import {Followups} from '@/components/entity-pages';export default function Page(){return <Followups/>}
+import FollowupsView from '@/components/followups-view';
+
+export default function Page() {
+  return <FollowupsView />;
+}
