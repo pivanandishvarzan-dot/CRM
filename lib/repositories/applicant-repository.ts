@@ -6,7 +6,7 @@ import { applicantScope, forceAssignedAgent } from '@/lib/data-scope';
 import { dispatchCRMEvent } from '@/lib/automation/event-dispatcher';
 
 export const pipelineStages = ['LEAD','CONTACTED','QUALIFIED','MATCHED','VISIT','NEGOTIATION','CONTRACT','WON'] as const;
-const requestMap: Record<string, DealType> = { فروش: 'SALE', خرید: 'SALE', اجاره: 'RENT', 'رهن و اجاره': 'MORTGAGE_RENT' };
+const requestMap: Record<string, DealType> = { فروش: 'SALE', خرید: 'SALE', اجاره: 'RENT', 'رهن و اجاره': 'MORTGAGE_RENT', SALE:'SALE', RENT:'RENT', MORTGAGE_RENT:'MORTGAGE_RENT' };
 export type ApplicantInput = { name: string; phone: string; requestType: string; budgetMin?: number; budgetMax?: number; cities?: string[]; districts?: string[]; propertyTypes?: string[]; minRooms?: number; requiredFeatures?: string[]; urgency?: number; notes?: string; agentId?: string; status?: string };
 
 export async function listApplicants(actor?: DataActor) {
