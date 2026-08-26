@@ -32,7 +32,8 @@ export async function getAdvancedReports(actor: DataActor, from?: Date, to?: Dat
   const applicantCountByAgent=new Map<string,number>();
   for(const group of applicantGroups) applicantCountByAgent.set(group.agentId,(applicantCountByAgent.get(group.agentId)||0)+group._count._all);
   for(const contract of contracts){const key=monthKey(contract.contractDate),m=monthlyMap.get(key)||{month:key,value:0,commission:0,contracts:0};m.value+=Number(contract.amount);m.commission+=Number(contract.commission);m.contracts++;monthlyMap.set(key,m);const a=agentMap.get(contract.agentId)||{name:contract.agent.name,applicants:applicantCountByAgent.get(contract.agentId)||0,contracts:0,value:0,commission:0};a.contracts++;a.value+=Number(contract.amount);a.commission+=Number(contract.commission);agentMap.set(contract.agentId,a)}
-  for(const [agentId,count] of applicantCountByAgent){if(agentMap.has(agentId))continue;const user=await prisma.user.findUnique({where:{id:agentId},select:{name:true}});if(user)agentMap.set(agentId,{name:user.name,applicants:count,contracts:0,value:0,commission:0})}
+  const missingAgentIds=Array.from(applicantCountByAgent.keys()).filter(id=>!agentMap.has(id));
+  if(missingAgentIds.length){const users=await prisma.user.findMany({where:{id:{in:missingAgentIds}},select:{id:true,name:true}});for(const user of users)agentMap.set(user.id,{name:user.name,applicants:applicantCountByAgent.get(user.id)||0,contracts:0,value:0,commission:0})}
 
   const now=Date.now();
   const staleProperties=properties.filter(p=>now-(p.followups[0]?.scheduledAt??p.createdAt).getTime()>14*86400000).map(p=>({id:p.id,title:p.title,code:p.code,agent:p.agent.name,lastActivityAt:p.followups[0]?.scheduledAt??p.createdAt}));
