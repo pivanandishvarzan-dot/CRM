@@ -10,11 +10,21 @@ const authConfig = {
   providers: [],
   callbacks: {
     jwt({ token, user }) {
-      if (user) { token.id = user.id; token.role = user.role; token.agencyId = user.agencyId ?? null; }
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+        token.agencyId = user.agencyId ?? null;
+        token.sessionVersion = user.sessionVersion ?? 1;
+      }
       return token;
     },
     session({ session, token }) {
-      if (session.user) { session.user.id = String(token.id ?? token.sub ?? ''); session.user.role = token.role ?? 'AGENT'; session.user.agencyId = token.agencyId ?? null; }
+      if (session.user) {
+        session.user.id = String(token.id ?? token.sub ?? '');
+        session.user.role = token.role ?? 'AGENT';
+        session.user.agencyId = token.agencyId ?? null;
+        session.user.sessionVersion = token.sessionVersion ?? 1;
+      }
       return session;
     },
   },
