@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createProperty, listProperties } from '@/lib/repositories/property-repository';
+import { pagedProperties } from '@/lib/repositories/paged-list-repository';
 import { requireUser } from '@/lib/authz';
 import { apiError, finiteNumber, optionalId, optionalText, stringArray, text } from '@/lib/api-validation';
+import { parsePagination } from '@/lib/pagination';
 
-export async function GET() {
-  try { return NextResponse.json({ data: await listProperties(await requireUser()) }); }
+export async function GET(request:Request) {
+  try { const user=await requireUser();const url=new URL(request.url);const page=parsePagination(url);if(page.enabled)return NextResponse.json(await pagedProperties(user,page.page,page.pageSize,url.searchParams.get('q')||''));return NextResponse.json({ data: await listProperties(user) }); }
   catch (error) { const out = apiError(error, 'دریافت ملک‌ها با خطا مواجه شد.'); return NextResponse.json({ error: out.message }, { status: out.status }); }
 }
 
