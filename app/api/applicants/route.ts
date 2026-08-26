@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createApplicant, listApplicants } from '@/lib/repositories/applicant-repository';
+import { pagedApplicants } from '@/lib/repositories/paged-list-repository';
 import { requireUser } from '@/lib/authz';
 import { apiError, finiteNumber, optionalId, optionalText, stringArray, text } from '@/lib/api-validation';
+import { parsePagination } from '@/lib/pagination';
 
-export async function GET() {
-  try { return NextResponse.json(await listApplicants(await requireUser())); }
+export async function GET(request:Request) {
+  try {const user=await requireUser();const url=new URL(request.url);const page=parsePagination(url);if(page.enabled)return NextResponse.json(await pagedApplicants(user,page.page,page.pageSize,url.searchParams.get('q')||''));return NextResponse.json(await listApplicants(user));}
   catch (error) { const out = apiError(error, 'خطا در دریافت متقاضی‌ها'); return NextResponse.json({ error: out.message }, { status: out.status }); }
 }
 
