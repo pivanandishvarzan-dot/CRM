@@ -5,9 +5,9 @@ import type { Property } from '@/lib/types';
 import type { DataActor } from '@/lib/data-scope';
 import { forceAssignedAgent, propertyScope } from '@/lib/data-scope';
 
-const dealMap: Record<string, DealType> = { فروش: 'SALE', اجاره: 'RENT', 'رهن و اجاره': 'MORTGAGE_RENT' };
+const dealMap: Record<string, DealType> = { فروش: 'SALE', اجاره: 'RENT', 'رهن و اجاره': 'MORTGAGE_RENT', SALE:'SALE', RENT:'RENT', MORTGAGE_RENT:'MORTGAGE_RENT' };
 const dealLabel: Record<DealType, string> = { SALE: 'فروش', RENT: 'اجاره', MORTGAGE_RENT: 'رهن و اجاره' };
-const statusMap: Record<string, PropertyStatus> = { فعال: 'ACTIVE', ویژه: 'ACTIVE', 'در مذاکره': 'NEGOTIATING', 'فروخته شد': 'SOLD', 'اجاره داده شد': 'RENTED', آرشیو: 'ARCHIVED' };
+const statusMap: Record<string, PropertyStatus> = { فعال: 'ACTIVE', ویژه: 'ACTIVE', 'در مذاکره': 'NEGOTIATING', 'فروخته شد': 'SOLD', 'اجاره داده شد': 'RENTED', آرشیو: 'ARCHIVED', پیش‌نویس:'DRAFT', DRAFT:'DRAFT', ACTIVE:'ACTIVE', NEGOTIATING:'NEGOTIATING', SOLD:'SOLD', RENTED:'RENTED', ARCHIVED:'ARCHIVED' };
 const statusLabel: Record<PropertyStatus, string> = { DRAFT: 'پیش‌نویس', ACTIVE: 'فعال', NEGOTIATING: 'در مذاکره', SOLD: 'فروخته شد', RENTED: 'اجاره داده شد', ARCHIVED: 'آرشیو' };
 
 export type PropertyInput = { code?: string; title: string; type: string; deal: string; status?: string; city: string; district: string; address?: string; price: number; area: number; rooms: number; floor?: number; age?: number; features?: string[]; image?: string; ownerId?: string; agentId?: string };
