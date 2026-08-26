@@ -4,7 +4,7 @@ import authConfig from '@/auth.config';
 
 const { auth } = NextAuth(authConfig);
 const publicPaths = ['/login', '/api/auth'];
-const managerOnly = ['/reports', '/settings', '/team'];
+const managerOnly = ['/reports', '/settings', '/team', '/backup'];
 
 export default auth(request => {
   const pathname = request.nextUrl.pathname;
