@@ -1,6 +1,6 @@
 # خانه‌یار — CRM فارسی املاک
 
-خانه‌یار یک CRM راست‌چین و واکنش‌گرا برای مدیریت آژانس املاک است که علاوه بر Demo Mode، مسیر کامل PostgreSQL/Prisma، احراز هویت، نقش‌ها، Pipeline فروش، Matching متقاضی و ملک، پیگیری، قرارداد، داشبورد مدیریتی و Automation Engine دارد.
+خانه‌یار یک CRM راست‌چین و واکنش‌گرا برای مدیریت آژانس املاک است که علاوه بر Demo Mode، مسیر کامل PostgreSQL/Prisma، احراز هویت، نقش‌ها، Pipeline فروش، Matching متقاضی و ملک، پیگیری، قرارداد، داشبورد مدیریتی، Automation Engine و Object Storage دارد.
 
 ## امکانات اصلی
 
@@ -12,6 +12,7 @@
 - Data Scope سمت سرور برای جداسازی داده مشاورها و آژانس‌ها
 - Automation Builder با ساختار `WHEN → IF → THEN`
 - Queue پایدار، اجرای تأخیردار، Retry و Job Monitoring
+- آپلود امن تصاویر و مدارک ملک روی Object Storage سازگار با S3
 - تمام تاریخ‌های قابل مشاهده و قابل ورود در UI به صورت شمسی؛ ذخیره داخلی تاریخ‌ها ISO/UTC است
 - Demo fallback برای اجرا بدون PostgreSQL
 
@@ -55,6 +56,21 @@ npm run dev
 
 Seed از bcrypt با cost 12 استفاده می‌کند. `SEED_PASSWORD` فقط برای محیط توسعه/آزمایش است و در Production باید حساب‌های واقعی با رمزهای امن ایجاد شوند.
 
+## Object Storage برای تصاویر و مدارک
+
+Storage از API سازگار با S3 استفاده می‌کند و با AWS S3، Cloudflare R2 و سرویس‌های مشابه قابل استفاده است. فایل مستقیماً از مرورگر با Presigned URL آپلود می‌شود و Bucket لازم نیست Public باشد.
+
+```env
+STORAGE_BUCKET="crm-media"
+STORAGE_REGION="auto"
+STORAGE_ENDPOINT="https://YOUR_S3_COMPATIBLE_ENDPOINT"
+STORAGE_ACCESS_KEY_ID="YOUR_ACCESS_KEY"
+STORAGE_SECRET_ACCESS_KEY="YOUR_SECRET_KEY"
+STORAGE_FORCE_PATH_STYLE=false
+```
+
+برای AWS S3 معمولاً `STORAGE_ENDPOINT` لازم نیست و `STORAGE_REGION` باید Region واقعی Bucket باشد. تصاویر `JPG/PNG/WEBP` تا ۱۰MB و مدارک `PDF/JPG/PNG/WEBP` تا ۲۰MB پذیرفته می‌شوند. URL ذخیره‌شده در CRM داخلی است و دانلود فایل بعد از بررسی Session و Data Scope با لینک امضاشده موقت انجام می‌شود.
+
 ## Scheduler اتوماسیون
 
 `vercel.json` اجرای `/api/jobs/run?limit=50` را هر پنج دقیقه زمان‌بندی می‌کند. Endpoint فقط درخواست دارای هدر زیر را قبول می‌کند:
@@ -89,6 +105,7 @@ GitHub Actions با PostgreSQL واقعی migration، seed، typecheck، product
 - `components/`: UI و صفحات تعاملی
 - `lib/repositories/`: persistence و Data Access
 - `lib/automation/`: Event Dispatcher و Job Queue
+- `lib/storage.ts`: Object Storage و Presigned URL
 - `lib/data-scope.ts`: محدودسازی داده براساس نقش و آژانس
 - `lib/date.ts` و `lib/jalali.ts`: نمایش و ورود تاریخ شمسی
 - `lib/matching/`: موتور Matching
@@ -100,4 +117,4 @@ GitHub Actions با PostgreSQL واقعی migration، seed، typecheck، product
 
 ## استقرار
 
-برای Production متغیرهای `DATABASE_URL`، `AUTH_SECRET`، `AUTH_TRUST_HOST=true` و `CRON_SECRET` را تعریف کنید و قبل از شروع نسخه جدید `npm run prisma:migrate` اجرا شود. Build Command همان `npm run build` است.
+برای Production متغیرهای دیتابیس، Auth، Cron و Storage را تعریف کنید و قبل از شروع نسخه جدید `npm run prisma:migrate` اجرا شود. Build Command همان `npm run build` است.
