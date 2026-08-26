@@ -1,4 +1,5 @@
 import { auth } from '@/auth';
+import { prisma, isDemoMode } from '@/lib/prisma';
 
 export type CRMRole = 'SYSTEM_ADMIN' | 'AGENCY_MANAGER' | 'AGENT';
 
@@ -11,7 +12,12 @@ export const permissions = {
 
 export async function currentUser() {
   const session = await auth();
-  return session?.user ?? null;
+  const user=session?.user ?? null;
+  if(!user||isDemoMode)return user;
+  const dbUser=await prisma.user.findUnique({where:{id:user.id},select:{active:true,sessionVersion:true,role:true,agencyId:true}});
+  if(!dbUser?.active)return null;
+  if((user.sessionVersion??1)!==dbUser.sessionVersion)return null;
+  return {...user,role:dbUser.role,agencyId:dbUser.agencyId,sessionVersion:dbUser.sessionVersion};
 }
 
 export async function requireUser() {
