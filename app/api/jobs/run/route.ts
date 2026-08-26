@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { runDueAutomationJobs } from '@/lib/automation/job-queue';
+import { generateSmartTasks } from '@/lib/automation/auto-task-generator';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,11 @@ async function run(request: Request) {
   try {
     const url = new URL(request.url);
     const limit = Number(url.searchParams.get('limit') || 25);
-    return NextResponse.json(await runDueAutomationJobs(Number.isFinite(limit) ? limit : 25));
+    const [jobs, smartTasks] = await Promise.all([
+      runDueAutomationJobs(Number.isFinite(limit) ? limit : 25),
+      generateSmartTasks(),
+    ]);
+    return NextResponse.json({ jobs, smartTasks });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'JOB_RUNNER_FAILED' }, { status: 500 });
   }
