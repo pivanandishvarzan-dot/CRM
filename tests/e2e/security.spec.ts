@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { authenticator } from 'otplib';
 import { createHash } from 'crypto';
 
+test.describe.configure({ mode: 'serial' });
+
 const prisma = new PrismaClient();
 const PASSWORD = process.env.SEED_PASSWORD || 'demo1234';
 
@@ -93,10 +95,10 @@ test('revoking sessions invalidates an existing JWT', async ({ page }) => {
   await resetSecurity(email);
   await login(page, email, PASSWORD);
   await expect(page).toHaveURL(/\/$/);
-  const user = await prisma.user.findUniqueOrThrow({ where: { email }, select: { id: true, sessionVersion: true } });
+  const user = await prisma.user.findUniqueOrThrow({ where: { email }, select: { id: true } });
   await prisma.user.update({ where: { id: user.id }, data: { sessionVersion: { increment: 1 } } });
   const response = await page.request.get('/api/properties');
-  expect([401, 302, 307]).toContain(response.status());
+  expect(response.status()).toBe(401);
 });
 
 test('agent API only returns its own property records', async ({ page }) => {
