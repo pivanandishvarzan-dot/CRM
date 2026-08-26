@@ -22,15 +22,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = String(credentials?.email ?? '').trim().toLowerCase();
         const password = String(credentials?.password ?? '');
         if (!email || password.length < 8) return null;
-
         if (isDemoMode) {
           const user = demoUsers.find(item => item.email === email);
           if (!user || password !== 'demo1234') return null;
           return user;
         }
-
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user?.passwordHash || !(await compare(password, user.passwordHash))) return null;
+        if (!user?.active || !user.passwordHash || !(await compare(password, user.passwordHash))) return null;
         return { id: user.id, name: user.name, email: user.email, role: user.role, agencyId: user.agencyId };
       },
     }),
