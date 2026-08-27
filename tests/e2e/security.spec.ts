@@ -30,7 +30,12 @@ async function login(page: Page, email: string, password = PASSWORD, twoFactorCo
   const twoFactor = page.getByLabel('کد دومرحله‌ای یا Recovery Code');
   if (twoFactorCode) await twoFactor.fill(twoFactorCode);
   else await twoFactor.fill('');
+
+  const authResponse = page.waitForResponse(response =>
+    response.request().method() === 'POST' && response.url().includes('/api/auth/callback/credentials'),
+  );
   await page.getByRole('button', { name: 'ورود امن' }).click();
+  await authResponse;
 }
 
 async function invalidLogin(page: Page, email: string) {
@@ -67,6 +72,11 @@ test('account locks after five invalid passwords', async ({ page }) => {
   await resetSecurity(email);
   for (let i = 0; i < 5; i++) {
     await invalidLogin(page, email);
+    const state = await prisma.user.findUniqueOrThrow({ where: { email }, select: { failedLoginAttempts: true, lockedUntil: true } });
+    if (i < 4) {
+      expect(state.failedLoginAttempts).toBe(i + 1);
+      expect(state.lockedUntil).toBeNull();
+    }
   }
   const user = await prisma.user.findUniqueOrThrow({ where: { email }, select: { lockedUntil: true } });
   expect(user.lockedUntil?.getTime() || 0).toBeGreaterThan(Date.now());
