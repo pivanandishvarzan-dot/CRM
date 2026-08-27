@@ -1,1 +1,1 @@
-import ExecutiveCommandCenter from'@/components/executive-command-center';export default function Page(){return <ExecutiveCommandCenter/>}
+import ManagerCommandCenter from'@/components/manager-command-center';export default function Page(){return <ManagerCommandCenter/>}
