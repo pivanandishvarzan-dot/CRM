@@ -5,53 +5,12 @@ import type { DataActor } from '@/lib/data-scope';
 import { applicantScope, forceAssignedAgent } from '@/lib/data-scope';
 import { dispatchCRMEvent } from '@/lib/automation/event-dispatcher';
 
-export const pipelineStages = ['LEAD','CONTACTED','QUALIFIED','MATCHED','VISIT','NEGOTIATION','CONTRACT','WON'] as const;
+export const pipelineStages = ['LEAD','CONTACTED','QUALIFIED','MATCHED','VISIT','NEGOTIATION','CONTRACT','WON','LOST'] as const;
+export const lostReasons = ['PRICE_BUDGET','COMPETITOR','FOLLOWUP','NO_MATCH','CUSTOMER_CHANGED','FINANCING','TIMING','OTHER'] as const;
 const requestMap: Record<string, DealType> = { فروش: 'SALE', خرید: 'SALE', اجاره: 'RENT', 'رهن و اجاره': 'MORTGAGE_RENT', SALE:'SALE', RENT:'RENT', MORTGAGE_RENT:'MORTGAGE_RENT' };
 export type ApplicantInput = { name: string; phone: string; requestType: string; budgetMin?: number; budgetMax?: number; cities?: string[]; districts?: string[]; propertyTypes?: string[]; minRooms?: number; requiredFeatures?: string[]; urgency?: number; notes?: string; agentId?: string; status?: string };
 
-export async function listApplicants(actor?: DataActor) {
-  if (isDemoMode) return demoApplicants.map(item => ({ id: String(item.id), name: item.name, phone: item.phone, requestType: item.request, budgetMin: null, budgetMax: null, cities: ['تهران'], districts: [], propertyTypes: [], minRooms: null, requiredFeatures: [], urgency: item.urgency === 'فوری' ? 4 : item.urgency === 'زیاد' ? 3 : item.urgency === 'متوسط' ? 2 : 1, status: 'LEAD', notes: null, agent: { id: `demo-agent-${item.agent}`, name: item.agent } }));
-  return prisma.applicant.findMany({ where: actor ? applicantScope(actor) : undefined, include: { agent: true }, orderBy: { createdAt: 'desc' } });
-}
-
-export async function getApplicant(id: string, actor?: DataActor) {
-  if (isDemoMode) {
-    const item = demoApplicants.find(x => String(x.id) === id);
-    return item ? { id: String(item.id), name: item.name, phone: item.phone, requestType: item.request, budgetMin: null, budgetMax: null, cities: ['تهران'], districts: [], propertyTypes: [], minRooms: null, requiredFeatures: [], urgency: item.urgency === 'فوری' ? 4 : item.urgency === 'زیاد' ? 3 : item.urgency === 'متوسط' ? 2 : 1, status: 'LEAD', notes: null, agent: { id: `demo-agent-${item.agent}`, name: item.agent } } : null;
-  }
-  return prisma.applicant.findFirst({ where: { id, ...(actor ? applicantScope(actor) : {}) }, include: { agent: true, contracts: { orderBy: { contractDate: 'desc' } }, followups: { orderBy: { scheduledAt: 'desc' }, take: 10 } } });
-}
-
-export async function createApplicant(input: ApplicantInput, actor?: DataActor) {
-  if (isDemoMode) return { id: String(Date.now()), ...input, cities: input.cities || [], districts: input.districts || [], propertyTypes: input.propertyTypes || [], requiredFeatures: input.requiredFeatures || [], urgency: input.urgency || 1, status: 'LEAD', agent: { id: input.agentId || 'demo-agent', name: 'مشاور نمایشی' } };
-  const scoped = actor ? forceAssignedAgent(actor, input) : input;
-  if (!scoped.agentId) throw new Error('agentId برای ثبت متقاضی الزامی است.');
-  if (actor?.role === 'AGENCY_MANAGER') {
-    const allowedAgent = await prisma.user.findFirst({ where: { id: scoped.agentId, agencyId: actor.agencyId ?? '__none__' }, select: { id: true } });
-    if (!allowedAgent) throw new Error('FORBIDDEN');
-  }
-  const applicant = await prisma.applicant.create({ data: { name: scoped.name, phone: scoped.phone, requestType: requestMap[scoped.requestType] || 'SALE', budgetMin: scoped.budgetMin, budgetMax: scoped.budgetMax, cities: scoped.cities || [], districts: scoped.districts || [], propertyTypes: scoped.propertyTypes || [], minRooms: scoped.minRooms, requiredFeatures: scoped.requiredFeatures || [], urgency: scoped.urgency || 1, notes: scoped.notes, agentId: scoped.agentId, status: scoped.status || 'LEAD' }, include: { agent: true } });
-  if (actor) {
-    await prisma.$transaction([
-      prisma.applicantStageHistory.create({ data: { applicantId: applicant.id, fromStage: null, toStage: applicant.status, changedById: actor.id } }),
-      prisma.activityLog.create({ data: { actorId: actor.id, action: 'APPLICANT_CREATED', entityType: 'APPLICANT', entityId: applicant.id, summary: `متقاضی ${applicant.name} ایجاد شد`, metadata: { stage: applicant.status } } }),
-    ]);
-    await dispatchCRMEvent({ name: 'APPLICANT_CREATED', actor, entityType: 'APPLICANT', entityId: applicant.id, assigneeId: applicant.agentId, href: `/applicants/${applicant.id}`, data: { urgency: applicant.urgency, status: applicant.status, requestType: applicant.requestType } });
-  }
-  return applicant;
-}
-
-export async function updateApplicantStatus(id: string, status: string, actor?: DataActor) {
-  if (isDemoMode) return { id, status };
-  const existing = await prisma.applicant.findFirst({ where: { id, ...(actor ? applicantScope(actor) : {}) }, select: { id: true, name: true, status: true, urgency: true, agentId: true } });
-  if (!existing) throw new Error('NOT_FOUND');
-  if (existing.status === status) return prisma.applicant.findUnique({ where: { id }, include: { agent: true } });
-  if (!actor) return prisma.applicant.update({ where: { id }, data: { status }, include: { agent: true } });
-  const [, updated] = await prisma.$transaction([
-    prisma.applicantStageHistory.create({ data: { applicantId: id, fromStage: existing.status, toStage: status, changedById: actor.id } }),
-    prisma.applicant.update({ where: { id }, data: { status }, include: { agent: true } }),
-    prisma.activityLog.create({ data: { actorId: actor.id, action: 'PIPELINE_STAGE_CHANGED', entityType: 'APPLICANT', entityId: id, summary: `مرحله ${existing.name} از ${existing.status} به ${status} تغییر کرد`, metadata: { fromStage: existing.status, toStage: status } } }),
-  ]);
-  await dispatchCRMEvent({ name: 'STAGE_CHANGED', actor, entityType: 'APPLICANT', entityId: id, assigneeId: existing.agentId, href: `/applicants/${id}`, data: { urgency: existing.urgency, status, fromStage: existing.status, toStage: status } });
-  return updated;
-}
+export async function listApplicants(actor?: DataActor) { if (isDemoMode) return demoApplicants.map(item => ({ id: String(item.id), name: item.name, phone: item.phone, requestType: item.request, budgetMin: null, budgetMax: null, cities: ['تهران'], districts: [], propertyTypes: [], minRooms: null, requiredFeatures: [], urgency: item.urgency === 'فوری' ? 4 : item.urgency === 'زیاد' ? 3 : item.urgency === 'متوسط' ? 2 : 1, status: 'LEAD', notes: null, agent: { id: `demo-agent-${item.agent}`, name: item.agent } })); return prisma.applicant.findMany({ where: actor ? applicantScope(actor) : undefined, include: { agent: true }, orderBy: { createdAt: 'desc' } }); }
+export async function getApplicant(id: string, actor?: DataActor) { if (isDemoMode) { const item = demoApplicants.find(x => String(x.id) === id); return item ? { id: String(item.id), name: item.name, phone: item.phone, requestType: item.request, budgetMin: null, budgetMax: null, cities: ['تهران'], districts: [], propertyTypes: [], minRooms: null, requiredFeatures: [], urgency: item.urgency === 'فوری' ? 4 : item.urgency === 'زیاد' ? 3 : item.urgency === 'متوسط' ? 2 : 1, status: 'LEAD', notes: null, agent: { id: `demo-agent-${item.agent}`, name: item.agent } } : null; } return prisma.applicant.findFirst({ where: { id, ...(actor ? applicantScope(actor) : {}) }, include: { agent: true, contracts: { orderBy: { contractDate: 'desc' } }, followups: { orderBy: { scheduledAt: 'desc' }, take: 10 } } }); }
+export async function createApplicant(input: ApplicantInput, actor?: DataActor) { if (isDemoMode) return { id: String(Date.now()), ...input, cities: input.cities || [], districts: input.districts || [], propertyTypes: input.propertyTypes || [], requiredFeatures: input.requiredFeatures || [], urgency: input.urgency || 1, status: 'LEAD', agent: { id: input.agentId || 'demo-agent', name: 'مشاور نمایشی' } }; const scoped = actor ? forceAssignedAgent(actor, input) : input; if (!scoped.agentId) throw new Error('agentId برای ثبت متقاضی الزامی است.'); if (actor?.role === 'AGENCY_MANAGER') { const allowedAgent = await prisma.user.findFirst({ where: { id: scoped.agentId, agencyId: actor.agencyId ?? '__none__' }, select: { id: true } }); if (!allowedAgent) throw new Error('FORBIDDEN'); } const applicant = await prisma.applicant.create({ data: { name: scoped.name, phone: scoped.phone, requestType: requestMap[scoped.requestType] || 'SALE', budgetMin: scoped.budgetMin, budgetMax: scoped.budgetMax, cities: scoped.cities || [], districts: scoped.districts || [], propertyTypes: scoped.propertyTypes || [], minRooms: scoped.minRooms, requiredFeatures: scoped.requiredFeatures || [], urgency: scoped.urgency || 1, notes: scoped.notes, agentId: scoped.agentId, status: scoped.status || 'LEAD' }, include: { agent: true } }); if (actor) { await prisma.$transaction([prisma.applicantStageHistory.create({ data: { applicantId: applicant.id, fromStage: null, toStage: applicant.status, changedById: actor.id } }),prisma.activityLog.create({ data: { actorId: actor.id, action: 'APPLICANT_CREATED', entityType: 'APPLICANT', entityId: applicant.id, summary: `متقاضی ${applicant.name} ایجاد شد`, metadata: { stage: applicant.status } } })]); await dispatchCRMEvent({ name: 'APPLICANT_CREATED', actor, entityType: 'APPLICANT', entityId: applicant.id, assigneeId: applicant.agentId, href: `/applicants/${applicant.id}`, data: { urgency: applicant.urgency, status: applicant.status, requestType: applicant.requestType } }); } return applicant; }
+export async function updateApplicantStatus(id: string, status: string, actor?: DataActor, lostReason?: string, lostNote?: string) { if (isDemoMode) return { id, status }; if(status==='LOST'&&!lostReasons.includes(lostReason as any))throw new Error('LOST_REASON_REQUIRED'); const existing = await prisma.applicant.findFirst({ where: { id, ...(actor ? applicantScope(actor) : {}) }, select: { id: true, name: true, status: true, urgency: true, agentId: true, notes:true } }); if (!existing) throw new Error('NOT_FOUND'); if (existing.status === status) return prisma.applicant.findUnique({ where: { id }, include: { agent: true } }); const notes=status==='LOST'?`${existing.notes||''}${existing.notes?'\n':''}[LOST_REASON:${lostReason}]${lostNote?` ${lostNote}`:''}`:undefined; if (!actor) return prisma.applicant.update({ where: { id }, data: { status,...(notes!==undefined?{notes}: {}) }, include: { agent: true } }); const [, updated] = await prisma.$transaction([prisma.applicantStageHistory.create({ data: { applicantId: id, fromStage: existing.status, toStage: status, changedById: actor.id } }),prisma.applicant.update({ where: { id }, data: { status,...(notes!==undefined?{notes}: {}) }, include: { agent: true } }),prisma.activityLog.create({ data: { actorId: actor.id, action: status==='LOST'?'APPLICANT_LOST':'PIPELINE_STAGE_CHANGED', entityType: 'APPLICANT', entityId: id, summary: status==='LOST'?`${existing.name} با دلیل ${lostReason} Lost شد`:`مرحله ${existing.name} از ${existing.status} به ${status} تغییر کرد`, metadata: { fromStage: existing.status, toStage: status,...(status==='LOST'?{lostReason,lostNote}: {}) } } })]); await dispatchCRMEvent({ name: 'STAGE_CHANGED', actor, entityType: 'APPLICANT', entityId: id, assigneeId: existing.agentId, href: `/applicants/${id}`, data: { urgency: existing.urgency, status, fromStage: existing.status, toStage: status,...(status==='LOST'?{lostReason}: {}) } }); return updated; }
