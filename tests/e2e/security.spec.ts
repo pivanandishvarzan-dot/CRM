@@ -16,12 +16,27 @@ async function resetSecurity(email: string) {
   await prisma.user.update({ where: { email }, data: { failedLoginAttempts: 0, lockedUntil: null, twoFactorEnabled: false, twoFactorSecret: null, recoveryCodes: [] } });
 }
 
+async function openLogin(page: Page) {
+  if (!page.url().includes('/login')) {
+    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  }
+  await expect(page.getByRole('button', { name: 'ورود امن' })).toBeVisible();
+}
+
 async function login(page: Page, email: string, password = PASSWORD, twoFactorCode = '') {
-  await page.goto('/login');
+  await openLogin(page);
   await page.getByLabel('ایمیل').fill(email);
   await page.getByLabel('رمز عبور').fill(password);
-  if (twoFactorCode) await page.getByLabel('کد دومرحله‌ای یا Recovery Code').fill(twoFactorCode);
+  const twoFactor = page.getByLabel('کد دومرحله‌ای یا Recovery Code');
+  if (twoFactorCode) await twoFactor.fill(twoFactorCode);
+  else await twoFactor.fill('');
   await page.getByRole('button', { name: 'ورود امن' }).click();
+}
+
+async function invalidLogin(page: Page, email: string) {
+  await login(page, email, 'wrongpass123');
+  await expect(page).toHaveURL(/\/login/);
+  await expect(page.getByRole('alert')).toBeVisible();
 }
 
 test.afterAll(async () => { await Promise.all(['manager@demo.local','agent@demo.local','agent2@demo.local'].map(resetSecurity)); await prisma.$disconnect(); });
@@ -51,13 +66,13 @@ test('account locks after five invalid passwords', async ({ page }) => {
   const email = 'agent2@demo.local';
   await resetSecurity(email);
   for (let i = 0; i < 5; i++) {
-    await login(page, email, 'wrongpass123');
-    await expect(page.getByRole('alert')).toBeVisible();
+    await invalidLogin(page, email);
   }
   const user = await prisma.user.findUniqueOrThrow({ where: { email }, select: { lockedUntil: true } });
   expect(user.lockedUntil?.getTime() || 0).toBeGreaterThan(Date.now());
   await login(page, email, PASSWORD);
   await expect(page).toHaveURL(/\/login/);
+  await expect(page.getByRole('alert')).toBeVisible();
   await resetSecurity(email);
 });
 
