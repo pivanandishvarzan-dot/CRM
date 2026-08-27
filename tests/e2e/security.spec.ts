@@ -30,22 +30,31 @@ async function login(page: Page, email: string, password = PASSWORD, twoFactorCo
   const twoFactor = page.getByLabel('کد دومرحله‌ای یا Recovery Code');
   if (twoFactorCode) await twoFactor.fill(twoFactorCode);
   else await twoFactor.fill('');
-
   await page.getByRole('button', { name: 'ورود امن' }).click();
-
-  // NextAuth's internal credentials callback URL is an implementation detail and
-  // can vary across versions. Synchronize on the two user-visible outcomes instead:
-  // successful navigation away from /login or the rendered authentication error.
   await Promise.race([
     page.waitForURL(url => !url.pathname.includes('/login')),
     page.getByRole('alert').waitFor({ state: 'visible' }),
   ]);
 }
 
-async function invalidLogin(page: Page, email: string) {
-  await login(page, email, 'wrongpass123');
-  await expect(page).toHaveURL(/\/login/);
+async function invalidLogin(page: Page, email: string, expectedAttempt: number) {
+  // Reload between attempts so a previous visible alert cannot satisfy the next submit.
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  await page.getByLabel('ایمیل').fill(email);
+  await page.getByLabel('رمز عبور').fill(`wrongpass${expectedAttempt}x`);
+  await page.getByLabel('کد دومرحله‌ای یا Recovery Code').fill('');
+  await page.getByRole('button', { name: 'ورود امن' }).click();
   await expect(page.getByRole('alert')).toBeVisible();
+
+  // Synchronize with the durable result of authorize(), not transient UI state.
+  await expect.poll(async () => {
+    const state = await prisma.user.findUniqueOrThrow({
+      where: { email },
+      select: { failedLoginAttempts: true, lockedUntil: true },
+    });
+    if (expectedAttempt < 5) return state.failedLoginAttempts;
+    return state.lockedUntil && state.lockedUntil.getTime() > Date.now() ? 5 : state.failedLoginAttempts;
+  }, { timeout: 10_000 }).toBe(expectedAttempt);
 }
 
 test.afterAll(async () => { await Promise.all(['manager@demo.local','agent@demo.local','agent2@demo.local'].map(resetSecurity)); await prisma.$disconnect(); });
@@ -74,11 +83,11 @@ test('agent is blocked from manager-only reports', async ({ page }) => {
 test('account locks after five invalid passwords', async ({ page }) => {
   const email = 'agent2@demo.local';
   await resetSecurity(email);
-  for (let i = 0; i < 5; i++) {
-    await invalidLogin(page, email);
+  for (let i = 1; i <= 5; i++) {
+    await invalidLogin(page, email, i);
     const state = await prisma.user.findUniqueOrThrow({ where: { email }, select: { failedLoginAttempts: true, lockedUntil: true } });
-    if (i < 4) {
-      expect(state.failedLoginAttempts).toBe(i + 1);
+    if (i < 5) {
+      expect(state.failedLoginAttempts).toBe(i);
       expect(state.lockedUntil).toBeNull();
     }
   }
