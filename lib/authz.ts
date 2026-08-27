@@ -26,7 +26,8 @@ export async function currentUser() {
 export async function requireUser() {
   const user = await currentUser();
   if (!user) throw new Error('UNAUTHORIZED');
-  return user;
+  if (!user.agencyId) throw new Error('FORBIDDEN');
+  return { ...user, agencyId: user.agencyId };
 }
 
 export async function requireRole(allowed: CRMRole[]) {
