@@ -4,30 +4,30 @@ import type { CRMRole } from '@/lib/authz';
 export type DataActor = {
   id: string;
   role: CRMRole;
-  agencyId?: string | null;
+  agencyId: string;
 };
 
 export function propertyScope(actor: DataActor): Prisma.PropertyWhereInput {
   if (actor.role === 'SYSTEM_ADMIN') return {};
-  if (actor.role === 'AGENCY_MANAGER') return { agent: { agencyId: actor.agencyId ?? '__none__' } };
+  if (actor.role === 'AGENCY_MANAGER') return { agent: { agencyId: actor.agencyId } };
   return { agentId: actor.id };
 }
 
 export function applicantScope(actor: DataActor): Prisma.ApplicantWhereInput {
   if (actor.role === 'SYSTEM_ADMIN') return {};
-  if (actor.role === 'AGENCY_MANAGER') return { agent: { agencyId: actor.agencyId ?? '__none__' } };
+  if (actor.role === 'AGENCY_MANAGER') return { agent: { agencyId: actor.agencyId } };
   return { agentId: actor.id };
 }
 
 export function followupScope(actor: DataActor): Prisma.FollowupWhereInput {
   if (actor.role === 'SYSTEM_ADMIN') return {};
-  if (actor.role === 'AGENCY_MANAGER') return { assignee: { agencyId: actor.agencyId ?? '__none__' } };
+  if (actor.role === 'AGENCY_MANAGER') return { assignee: { agencyId: actor.agencyId } };
   return { assigneeId: actor.id };
 }
 
 export function contractScope(actor: DataActor): Prisma.ContractWhereInput {
   if (actor.role === 'SYSTEM_ADMIN') return {};
-  if (actor.role === 'AGENCY_MANAGER') return { agent: { agencyId: actor.agencyId ?? '__none__' } };
+  if (actor.role === 'AGENCY_MANAGER') return { agent: { agencyId: actor.agencyId } };
   return { agentId: actor.id };
 }
 
