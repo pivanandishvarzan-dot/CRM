@@ -31,11 +31,15 @@ async function login(page: Page, email: string, password = PASSWORD, twoFactorCo
   if (twoFactorCode) await twoFactor.fill(twoFactorCode);
   else await twoFactor.fill('');
 
-  const authResponse = page.waitForResponse(response =>
-    response.request().method() === 'POST' && response.url().includes('/api/auth/callback/credentials'),
-  );
   await page.getByRole('button', { name: 'ورود امن' }).click();
-  await authResponse;
+
+  // NextAuth's internal credentials callback URL is an implementation detail and
+  // can vary across versions. Synchronize on the two user-visible outcomes instead:
+  // successful navigation away from /login or the rendered authentication error.
+  await Promise.race([
+    page.waitForURL(url => !url.pathname.includes('/login')),
+    page.getByRole('alert').waitFor({ state: 'visible' }),
+  ]);
 }
 
 async function invalidLogin(page: Page, email: string) {
