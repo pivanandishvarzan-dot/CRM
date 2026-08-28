@@ -12,4 +12,7 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
-export const isDemoMode = process.env.DEMO_MODE !== 'false' || !process.env.DATABASE_URL;
+// A configured database must use the real persistence/auth path by default.
+// Demo mode is opt-in so a missing DEMO_MODE flag can never silently bypass
+// database-backed login security (failed-attempt counters, lockout, 2FA, etc.).
+export const isDemoMode = process.env.DEMO_MODE === 'true' || !process.env.DATABASE_URL;
