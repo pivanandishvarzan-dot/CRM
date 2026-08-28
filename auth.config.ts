@@ -1,12 +1,30 @@
 import type { NextAuthConfig } from 'next-auth';
 
-const production=process.env.NODE_ENV==='production';
+// Cookie security must follow the actual public auth URL, not NODE_ENV alone.
+// CI intentionally runs the production build over http://localhost:3000; forcing
+// Secure cookies there prevents Auth.js from persisting its auth/CSRF cookies and
+// can stop credentials authorization before the database-backed security logic runs.
+const authUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL || '';
+const secureCookies = authUrl
+  ? authUrl.startsWith('https://')
+  : process.env.NODE_ENV === 'production';
+
 const authConfig = {
   trustHost: true,
   session: { strategy: 'jwt', maxAge: 60 * 60 * 8, updateAge: 60 * 30 },
   pages: { signIn: '/login' },
-  useSecureCookies: production,
-  cookies:{sessionToken:{name:production?'__Secure-authjs.session-token':'authjs.session-token',options:{httpOnly:true,sameSite:'lax' as const,path:'/',secure:production}}},
+  useSecureCookies: secureCookies,
+  cookies: {
+    sessionToken: {
+      name: secureCookies ? '__Secure-authjs.session-token' : 'authjs.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        path: '/',
+        secure: secureCookies,
+      },
+    },
+  },
   providers: [],
   callbacks: {
     jwt({ token, user }) {
@@ -29,4 +47,5 @@ const authConfig = {
     },
   },
 } satisfies NextAuthConfig;
+
 export default authConfig;
