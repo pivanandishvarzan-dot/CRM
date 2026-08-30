@@ -1,1 +1,1 @@
-import ExperimentDecisionCenter from'@/components/experiment-decision-center';export default function Page(){return <ExperimentDecisionCenter/>}
+import ExperimentDecisionCenter from'@/components/experiment-decision-center';import ExperimentReadinessPanel from'@/components/experiment-readiness-panel';export default function Page(){return <><ExperimentReadinessPanel/><ExperimentDecisionCenter/></>}
