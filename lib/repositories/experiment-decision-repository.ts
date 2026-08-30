@@ -1,7 +1,7 @@
 import{prisma,isDemoMode}from'@/lib/prisma';import type{DataActor}from'@/lib/data-scope';import{getExperimentAnalytics}from'./assignment-experiment-repository';import{getExperimentHealth}from'./experiment-health-repository';
 export async function getExperimentDecision(actor:DataActor){
  const[analytics,health]=await Promise.all([getExperimentAnalytics(actor),getExperimentHealth(actor)]);
- if(!analytics.experiment)return{experiment:null,decision:'NO_EXPERIMENT',title:'آزمایش فعالی وجود ندارد',reason:'برای تصمیم‌گیری ابتدا یک آزمایش تخصیص فعال کنید.',action:null,blockers:[],history:[],evidence:[],analytics,health};
+ if(!analytics.experiment)return{experiment:null,decision:'NO_EXPERIMENT',title:'آزمایش فعالی وجود ندارد',reason:'برای تصمیم‌گیری ابتدا یک آزمایش تخصیص فعال کنید.',action:null,blockers:[],history:[],evidence:[],collection:null,analytics,health};
  const s=analytics.statistics||{};let decision='CONTINUE',title='آزمایش را ادامه دهید',reason='هنوز شواهد کافی برای تغییر سهم وجود ندارد.',action:any=null;
  if(health.status==='CRITICAL'){decision='PAUSE';title='تصمیم‌گیری متوقف شود';reason='Health Score آزمایش بحرانی است؛ قبل از هر Rollout یا نتیجه‌گیری، مشکلات کیفیت داده و نمونه‌گیری را برطرف کنید.'}
  else if(analytics.rollback?.eligible){decision='ROLLBACK';title=`پیشنهاد Rollback به ${analytics.rollback.target}٪`;reason=analytics.rollback.reason;action={kind:'ROLLBACK',target:analytics.rollback.target}}
@@ -10,7 +10,7 @@ export async function getExperimentDecision(actor:DataActor){
  else if(!s.ready){decision='COLLECT_MORE';title='نمونه بیشتری جمع کنید';reason='حجم نمونه هنوز برای نتیجه‌گیری نهایی کافی نیست.'}
  else if(health.status==='WARNING'){decision='FIX_HEALTH';title='قبل از Rollout هشدارهای آزمایش را اصلاح کنید';reason='نتیجه آماری به تنهایی کافی نیست؛ Guardrailهای سلامت باید قبل از افزایش سهم Smart رفع شوند.'}
  const blockers=[...(health.issues||[]).map((x:any)=>({source:'HEALTH',...x}))];if(!s.ready)blockers.push({source:'STATISTICS',code:'INSUFFICIENT_EVIDENCE',severity:'MEDIUM',title:'شواهد آماری ناکافی',detail:'برای تصمیم نهایی حداقل ۳۰ ارزیابی در هر گروه لازم است.'});
- const evidence=(analytics.variants||[]).map((x:any)=>({variant:x.variant,total:Number(x.total||0),evaluated:Number(x.evaluated||0),successes:Number(x.successes||0),contracts:Number(x.contracts||0),successRate:Number(x.successRate||0),remaining:Math.max(0,30-Number(x.evaluated||0))}));
+ const evidence=(analytics.variants||[]).map((x:any)=>({variant:x.variant,total:Number(x.total||0),evaluated:Number(x.evaluated||0),successes:Number(x.successes||0),contracts:Number(x.contracts||0),successRate:Number(x.successRate||0),remaining:Math.max(0,30-Number(x.evaluated||0))}));const remaining=evidence.reduce((n:number,x:any)=>n+x.remaining,0),weekly=Math.max(0,Number(health.metrics?.last7Days||0)),daysToMinimum=remaining&&weekly?Math.ceil(remaining/weekly*7):remaining?null:0,collection={remainingEvaluations:remaining,weeklyEnrollment:weekly,daysToMinimum,estimatedReadyAt:daysToMinimum===null?null:new Date(Date.now()+daysToMinimum*86400000).toISOString()};
  const history=isDemoMode?[]:await prisma.activityLog.findMany({where:{entityType:'LEAD_ASSIGNMENT_EXPERIMENT',entityId:analytics.experiment.id,action:{in:['ASSIGNMENT_EXPERIMENT_ROLLOUT','ASSIGNMENT_EXPERIMENT_ROLLBACK']}},orderBy:{createdAt:'desc'},take:10,select:{id:true,action:true,summary:true,metadata:true,createdAt:true,actor:{select:{name:true}}}});
- return{experiment:analytics.experiment,decision,title,reason,action,blockers,evidence,history,analytics,health};
+ return{experiment:analytics.experiment,decision,title,reason,action,blockers,evidence,collection,history,analytics,health};
 }
