@@ -1,0 +1,2 @@
+import{NextResponse}from'next/server';import{requireUser}from'@/lib/authz';import{getAtRiskDeals}from'@/lib/repositories/deal-risk-repository';import{apiError}from'@/lib/api-validation';
+export async function GET(request:Request){try{const actor=await requireUser();const limit=Number(new URL(request.url).searchParams.get('limit'))||20;return NextResponse.json({data:await getAtRiskDeals(actor,limit),generatedAt:new Date().toISOString()})}catch(e){const out=apiError(e,'تحلیل ریسک معاملات انجام نشد.');return NextResponse.json({error:out.message},{status:out.status})}}

@@ -1,0 +1,2 @@
+-- NotificationDigestItem was already created by 20260826235500_notification_throttling.
+-- This migration is intentionally a no-op to preserve migration history.

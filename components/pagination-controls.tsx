@@ -1,0 +1,4 @@
+'use client';
+import {ChevronLeft,ChevronRight}from'lucide-react';
+export type PageMeta={page:number;pageSize:number;total:number;totalPages:number;hasNext:boolean;hasPrevious:boolean};
+export default function PaginationControls({meta,onPage}:{meta:PageMeta;onPage:(page:number)=>void}){if(meta.totalPages<=1)return null;return <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-3 text-sm"><span className="text-slate-500">صفحه {meta.page.toLocaleString('fa-IR')} از {meta.totalPages.toLocaleString('fa-IR')} · {meta.total.toLocaleString('fa-IR')} رکورد</span><div className="flex gap-2"><button className="btn-secondary" disabled={!meta.hasPrevious} onClick={()=>onPage(meta.page-1)}><ChevronRight size={16}/>قبلی</button><button className="btn-secondary" disabled={!meta.hasNext} onClick={()=>onPage(meta.page+1)}>بعدی<ChevronLeft size={16}/></button></div></div>}

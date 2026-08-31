@@ -1,0 +1,1 @@
+import DailyExecutiveBrief from'@/components/daily-executive-brief';import ExecutiveExperimentBrief from'@/components/executive-experiment-brief';export default function Page(){return <><ExecutiveExperimentBrief/><DailyExecutiveBrief/></>}

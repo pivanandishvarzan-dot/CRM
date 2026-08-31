@@ -1,0 +1,1 @@
+import ExecutiveControlTower from'@/components/executive-control-tower';import ExecutiveExperimentGovernance from'@/components/executive-experiment-governance';export default function Page(){return <><ExecutiveExperimentGovernance/><ExecutiveControlTower/></>}

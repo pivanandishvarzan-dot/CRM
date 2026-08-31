@@ -1,1 +1,2 @@
-import {Applicants} from '@/components/entity-pages';export default function Page(){return <Applicants/>}
+import ApplicantsPagedView from '@/components/applicants-paged-view';
+export default function Page(){return <ApplicantsPagedView/>}

@@ -1,0 +1,4 @@
+import{assessDealRisk}from'@/lib/deal-risk';
+const base:Record<string,number>={LEAD:8,CONTACTED:14,QUALIFIED:24,MATCHED:36,VISIT:52,NEGOTIATION:68,CONTRACT:86,WON:100};
+type Input={status:string;urgency:number;createdAt:Date;updatedAt:Date;lastFollowupAt:Date|null;nextFollowupAt:Date|null;positiveMatches:number;negativeMatches:number;contracts:number};
+export function forecastProbability(x:Input){const risk=assessDealRisk(x);let p=base[x.status]??10;if(x.positiveMatches>0)p+=Math.min(12,x.positiveMatches*4);if(x.negativeMatches>x.positiveMatches)p-=Math.min(12,(x.negativeMatches-x.positiveMatches)*4);if(x.nextFollowupAt&&x.nextFollowupAt>=new Date())p+=4;if(x.urgency>=4)p+=3;p-=Math.round(risk.score*.35);if(x.contracts>0)p=Math.max(p,88);p=Math.max(2,Math.min(100,p));return{probability:p,riskScore:risk.score,riskLevel:risk.level,confidence:p>=75?'بالا':p>=45?'متوسط':'پایین',reasons:risk.factors};}

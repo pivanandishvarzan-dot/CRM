@@ -1,0 +1,1 @@
+ALTER TABLE "Property" ADD COLUMN "documents" JSONB NOT NULL DEFAULT '[]';
