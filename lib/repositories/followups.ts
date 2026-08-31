@@ -1,0 +1,13 @@
+import { followups as demoFollowups } from '@/lib/demo-data';
+import { isDemoMode } from '@/lib/data-mode';
+import { prisma } from '@/lib/prisma';
+export type FollowupItem={id:string;title:string;type:string;scheduledAt:string;time:string;priority:string;completed:boolean;agent:string;description:string};
+type Input={title:string;type:'CALL'|'MESSAGE'|'MEETING'|'VISIT'|'REMINDER'|'TASK';scheduledAt:string;priority?:number;description?:string;assigneeId?:string};
+let store:FollowupItem[]=demoFollowups.map((f:any)=>({id:String(f.id),title:f.title,type:f.type,scheduledAt:new Date().toISOString(),time:f.time,priority:f.priority??'عادی',completed:false,agent:f.agent,description:''}));
+const typeLabel={CALL:'تماس',MESSAGE:'پیام',MEETING:'جلسه',VISIT:'بازدید',REMINDER:'یادآوری',TASK:'وظیفه'} as const;
+const priorityLabel=(n:number)=>n>=3?'فوری':n===2?'مهم':'عادی';
+function mapRow(f:any):FollowupItem{return{id:f.id,title:f.title,type:typeLabel[f.type as keyof typeof typeLabel]??f.type,scheduledAt:f.scheduledAt.toISOString(),time:new Intl.DateTimeFormat('fa-IR',{hour:'2-digit',minute:'2-digit'}).format(f.scheduledAt),priority:priorityLabel(f.priority),completed:f.completed,agent:f.assignee?.name??'—',description:f.description??''}}
+export async function listFollowups(){if(isDemoMode())return store;const rows=await prisma.followup.findMany({include:{assignee:true},orderBy:{scheduledAt:'asc'}});return rows.map(mapRow)}
+export async function createFollowup(input:Input){if(isDemoMode()){const d=new Date(input.scheduledAt);const item:FollowupItem={id:`demo-followup-${Date.now()}`,title:input.title,type:typeLabel[input.type],scheduledAt:d.toISOString(),time:new Intl.DateTimeFormat('fa-IR',{hour:'2-digit',minute:'2-digit'}).format(d),priority:priorityLabel(input.priority??1),completed:false,agent:'مشاور دمو',description:input.description??''};store=[item,...store];return item}let assigneeId=input.assigneeId;if(!assigneeId){const u=await prisma.user.findFirst({orderBy:{createdAt:'asc'}});if(!u)throw new Error('NO_ASSIGNEE');assigneeId=u.id}const row=await prisma.followup.create({data:{title:input.title,type:input.type,scheduledAt:new Date(input.scheduledAt),priority:input.priority??1,description:input.description||null,assigneeId},include:{assignee:true}});return mapRow(row)}
+export async function setFollowupCompleted(id:string,completed:boolean){if(isDemoMode()){store=store.map(x=>x.id===id?{...x,completed}:x);return store.find(x=>x.id===id)}const row=await prisma.followup.update({where:{id},data:{completed},include:{assignee:true}});return mapRow(row)}
+export async function deleteFollowup(id:string){if(isDemoMode()){store=store.filter(x=>x.id!==id);return}await prisma.followup.delete({where:{id}})}
