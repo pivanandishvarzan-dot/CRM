@@ -1,0 +1,1 @@
+import {NextResponse} from 'next/server';import {deleteContract} from '@/lib/repositories/contracts';export async function DELETE(_:Request,{params}:{params:{id:string}}){try{await deleteContract(params.id);return new NextResponse(null,{status:204})}catch(e){console.error(e);return NextResponse.json({error:'حذف قرارداد ممکن نیست'},{status:409})}}

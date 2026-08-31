@@ -1,1 +1,1 @@
-import {Contracts} from '@/components/entity-pages';export default function Page(){return <Contracts/>}
+import {ContractsView} from '@/components/contracts-view';export default function Page(){return <ContractsView/>}
