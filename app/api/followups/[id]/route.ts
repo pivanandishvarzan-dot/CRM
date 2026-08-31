@@ -1,0 +1,3 @@
+import {NextResponse} from 'next/server';import {deleteFollowup,setFollowupCompleted} from '@/lib/repositories/followups';
+export async function PATCH(req:Request,{params}:{params:{id:string}}){try{const b=await req.json();if(typeof b.completed!=='boolean')return NextResponse.json({error:'وضعیت نامعتبر است'},{status:400});return NextResponse.json({data:await setFollowupCompleted(params.id,b.completed)})}catch(e){console.error(e);return NextResponse.json({error:'خطا در بروزرسانی پیگیری'},{status:500})}}
+export async function DELETE(_:Request,{params}:{params:{id:string}}){try{await deleteFollowup(params.id);return new NextResponse(null,{status:204})}catch(e){console.error(e);return NextResponse.json({error:'خطا در حذف پیگیری'},{status:500})}}
