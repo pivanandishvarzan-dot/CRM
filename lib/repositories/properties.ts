@@ -15,12 +15,14 @@ export type PropertyListItem = {
   price: number;
   status: string;
   owner: string;
+  ownerPhone?: string;
   agent: string;
   image: string;
   created: string;
   floor: number;
   age: number;
   features: string[];
+  address?: string;
 };
 
 export type CreatePropertyInput = {
@@ -78,12 +80,14 @@ function mapRow(item: Awaited<ReturnType<typeof prisma.property.findFirst>> & an
     price: Number(item.price) / 1_000_000_000,
     status: statusLabels[item.status as keyof typeof statusLabels],
     owner: item.owner?.name ?? '',
+    ownerPhone: item.owner?.phone ?? '',
     agent: item.agent?.name ?? '',
     image: item.images?.[0] ?? '',
     created: new Intl.DateTimeFormat('fa-IR').format(item.createdAt),
     floor: item.floor ?? 0,
     age: item.age ?? 0,
     features: item.features ?? [],
+    address: item.address ?? '',
   };
 }
 
@@ -96,6 +100,12 @@ export async function listProperties(): Promise<PropertyListItem[]> {
   });
 
   return rows.map(mapRow);
+}
+
+export async function getProperty(id: string): Promise<PropertyListItem | null> {
+  if (isDemoMode()) return demoStore.find((item) => item.id === id) ?? null;
+  const row = await prisma.property.findUnique({where:{id},include:{owner:true,agent:true}});
+  return row ? mapRow(row) : null;
 }
 
 export async function createProperty(input: CreatePropertyInput): Promise<PropertyListItem> {
