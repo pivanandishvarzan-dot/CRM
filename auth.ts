@@ -6,14 +6,27 @@ export const {handlers, auth, signIn, signOut}=NextAuth({
   providers:[Credentials({
     credentials:{email:{},password:{}},
     async authorize(credentials){
-      if(!credentials?.email) return null;
+      if(!credentials?.email || !credentials?.password) return null;
       const user=await prisma.user.findUnique({where:{email:String(credentials.email)}});
-      if(!user) return null;
+      if(!user || !user.passwordHash) return null;
+      if(String(credentials.password)!==user.passwordHash) return null;
       return {id:user.id,name:user.name,email:user.email,role:user.role};
     }
   })],
   callbacks:{
-    async jwt({token,user}){if(user) token.role=(user as any).role;return token},
-    async session({session,token}){if(session.user)(session.user as any).role=token.role;return session}
+    async jwt({token,user}){
+      if(user){
+        token.userId=(user as any).id;
+        token.role=(user as any).role;
+      }
+      return token;
+    },
+    async session({session,token}){
+      if(session.user){
+        (session.user as any).id=token.userId;
+        (session.user as any).role=token.role;
+      }
+      return session;
+    }
   }
 });
