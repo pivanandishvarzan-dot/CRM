@@ -1,1 +1,5 @@
-export default function Page(){return <><h1 className="text-2xl font-bold">تنظیمات</h1><p className="mt-1 text-sm text-slate-500">تنظیمات آژانس، کاربران و سطح دسترسی</p><div className="card mt-6 max-w-3xl p-6"><h2 className="font-bold">اطلاعات آژانس</h2><div className="mt-5 grid gap-4 md:grid-cols-2"><div><label className="label">نام آژانس</label><input className="input" defaultValue="آژانس املاک خانه‌یار"/></div><div><label className="label">شماره تماس</label><input className="input" defaultValue="۰۲۱-۲۲۳۳۴۴۵۵"/></div><div><label className="label">نقش پیش‌فرض</label><select className="input"><option>مشاور املاک</option><option>مدیر آژانس</option><option>مدیر سیستم</option></select></div><div><label className="label">حالت برنامه</label><input className="input" disabled value="نمایشی (Demo Mode)"/></div></div><button className="btn-primary mt-5">ذخیره تغییرات</button></div></>}
+import {SettingsView} from '@/components/settings-view';
+
+export default function Page(){
+  return <SettingsView/>;
+}
