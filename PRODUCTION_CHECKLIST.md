@@ -46,8 +46,31 @@ npm run build
 
 ## 4. Start and health
 
+### اجرای مستقیم Node
+
 ```bash
 npm start
+```
+
+### اجرای Docker
+
+یک فایل `.env` فقط روی سرور بسازید و حداقل `DATABASE_URL` و `AUTH_SECRET` را در آن قرار دهید. سپس:
+
+```bash
+docker compose build --pull
+docker compose up -d
+```
+
+Container قبل از اجرای Next.js به‌صورت خودکار `prisma migrate deploy` را اجرا می‌کند. وضعیت Container را با این دستور ببینید:
+
+```bash
+docker compose ps
+```
+
+برای مشاهده لاگ‌ها:
+
+```bash
+docker compose logs -f crm
 ```
 
 سپس `GET /api/health` را بررسی کنید. انتظار می‌رود HTTP 200 و `status: ok` / `database: ok` برگردد. HTTP 503 یعنی اتصال دیتابیس سالم نیست.
@@ -79,4 +102,4 @@ Release فقط وقتی آماده Production است که همه موارد زی
 
 ## Rollback
 
-در صورت شکست migration یا smoke test، rollout را متوقف کنید. کد را به آخرین commit سالم برگردانید و برای تغییرات مخرب دیتابیس از backup معتبر استفاده کنید. migrationهای اعمال‌شده را بدون بررسی دستی با SQL معکوس نکنید.
+در صورت شکست migration یا smoke test، rollout را متوقف کنید. در Docker، نسخه قبلی image/commit را دوباره build و اجرا کنید. برای تغییرات مخرب دیتابیس از backup معتبر استفاده کنید. migrationهای اعمال‌شده را بدون بررسی دستی با SQL معکوس نکنید.
