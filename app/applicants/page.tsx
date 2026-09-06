@@ -1,1 +1,1 @@
-import {Applicants} from '@/components/entity-pages';export default function Page(){return <Applicants/>}
+import {ApplicantsWorkspace} from '@/components/contacts-workspace';export default function Page(){return <ApplicantsWorkspace/>}
