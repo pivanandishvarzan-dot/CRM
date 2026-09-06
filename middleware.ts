@@ -1,7 +1,10 @@
-export { auth as middleware } from './auth';
+import NextAuth from 'next-auth';
+import authConfig from './auth.config';
 
-export const config = {
-  matcher: [
+export default NextAuth(authConfig).auth;
+
+export const config={
+  matcher:[
     '/dashboard/:path*',
     '/properties/:path*',
     '/owners/:path*',
@@ -10,5 +13,5 @@ export const config = {
     '/contracts/:path*',
     '/reports/:path*',
     '/settings/:path*'
-  ],
+  ]
 };
