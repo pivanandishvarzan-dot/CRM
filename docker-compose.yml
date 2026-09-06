@@ -1,0 +1,16 @@
+services:
+  crm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      DEMO_MODE: "false"
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL is required}"
+      AUTH_SECRET: "${AUTH_SECRET:?AUTH_SECRET is required}"
+      AUTH_TRUST_HOST: "${AUTH_TRUST_HOST:-true}"
