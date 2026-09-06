@@ -37,7 +37,7 @@ AUTH_SECRET=...
 AUTH_TRUST_HOST=true
 ```
 
-سپس:
+برای یک دیتابیس خالی و تازه:
 
 ```bash
 npm install
@@ -49,7 +49,19 @@ npm run build
 npm start
 ```
 
-> اگر دیتابیس قبلاً با `prisma db push` ساخته شده، قبل از اولین `prisma migrate deploy` باید وضعیت baseline/migration history بررسی شود. migration فعلی فقط تغییرات جدید schema را اعمال می‌کند و جایگزین بررسی baseline نیست.
+migration baseline کل schema اولیه را می‌سازد و migration بعدی `Owner.agencyId` را اضافه و backfill می‌کند؛ بنابراین دیتابیس تازه می‌تواند تمام تاریخچه را از صفر اجرا کند.
+
+### دیتابیس موجودی که قبلاً با `prisma db push` ساخته شده
+
+baseline نباید دوباره روی جدول‌های موجود اجرا شود. قبل از اولین deploy، پس از گرفتن backup و تأیید اینکه schema موجود با baseline هم‌خوان است، baseline را فقط به‌عنوان «قبلاً اعمال‌شده» ثبت کنید:
+
+```bash
+npx prisma migrate resolve --applied 20260906130000_baseline
+npm run prisma:migrate:status
+npm run prisma:migrate:deploy
+```
+
+این کار فقط رکورد migration را ثبت می‌کند و SQL baseline را روی دیتابیس موجود اجرا نمی‌کند. اگر migration `20260906132000_add_owner_agency` نیز قبلاً به‌صورت دستی یا با `db push` اعمال شده، آن را بدون بررسی دوباره resolve نکنید.
 
 ## احراز هویت و دسترسی
 
@@ -69,10 +81,11 @@ Auth.js با Credentials فعال است. رمزها با PBKDF2 ذخیره می
 prisma/schema.prisma
 ```
 
-migrationها:
+ترتیب migrationهای فعلی:
 
 ```text
-prisma/migrations/
+prisma/migrations/20260906130000_baseline/
+prisma/migrations/20260906132000_add_owner_agency/
 ```
 
 دستورات مفید:
@@ -105,6 +118,7 @@ npm run prisma:migrate:deploy
 
 ```bash
 npm run prisma:generate
+npm run prisma:migrate:status
 npm run typecheck
 npm run build
 ```
@@ -119,5 +133,6 @@ npm run build
 - قراردادها
 - گزارش‌ها
 - جداسازی داده بین آژانس‌ها
+- پاسخ سالم `/api/health`
 
-CI پروژه همین validationهای اصلی را اجرا می‌کند؛ تا زمانی که یک workflow موفق ثبت نشده، نباید Build را تأییدشده فرض کرد.
+CI پروژه روی PostgreSQL واقعی migrationها، Prisma Generate، Typecheck و Production Build را اجرا می‌کند؛ تا زمانی که یک workflow موفق ثبت نشده، نباید Build را تأییدشده فرض کرد.
