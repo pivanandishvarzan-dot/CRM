@@ -14,9 +14,9 @@ let demoApplicantStore: ApplicantItem[] = demoApplicants.map((a:any)=>({id:Strin
 const dealLabel={SALE:'خرید',RENT:'اجاره',MORTGAGE_RENT:'رهن و اجاره'} as const;
 const urgencyLabel=(n:number)=>n>=3?'فوری':n===2?'زیاد':'عادی';
 
-export async function listOwners():Promise<OwnerItem[]>{
+export async function listOwners(agentId?:string):Promise<OwnerItem[]>{
  if(isDemoMode()) return demoOwnerStore;
- const rows=await prisma.owner.findMany({include:{properties:{select:{id:true,agent:{select:{name:true}}}}},orderBy:{createdAt:'desc'}});
+ const rows=await prisma.owner.findMany({where:agentId?{properties:{some:{agentId}}}:undefined,include:{properties:{where:agentId?{agentId}:undefined,select:{id:true,agent:{select:{name:true}}}}},orderBy:{createdAt:'desc'}});
  return rows.map(o=>({id:o.id,name:o.name,phone:o.phone,email:o.email??undefined,note:o.notes??'',agent:o.properties[0]?.agent.name??'—',propertyCount:o.properties.length}));
 }
 export async function createOwner(input:OwnerInput):Promise<OwnerItem>{
@@ -24,11 +24,15 @@ export async function createOwner(input:OwnerInput):Promise<OwnerItem>{
  const o=await prisma.owner.create({data:{name:input.name,phone:input.phone,email:input.email||null,notes:input.notes||null}});
  return {id:o.id,name:o.name,phone:o.phone,email:o.email??undefined,note:o.notes??'',agent:'—',propertyCount:0};
 }
-export async function deleteOwner(id:string){if(isDemoMode()){demoOwnerStore=demoOwnerStore.filter(x=>x.id!==id);return;}await prisma.owner.delete({where:{id}});}
+export async function deleteOwner(id:string,agentId?:string){
+ if(isDemoMode()){demoOwnerStore=demoOwnerStore.filter(x=>x.id!==id);return;}
+ if(agentId){const owned=await prisma.owner.findFirst({where:{id,properties:{some:{agentId}}},select:{id:true}});if(!owned)throw new Error('FORBIDDEN_OR_NOT_FOUND');}
+ await prisma.owner.delete({where:{id}});
+}
 
-export async function listApplicants():Promise<ApplicantItem[]>{
+export async function listApplicants(agentId?:string):Promise<ApplicantItem[]>{
  if(isDemoMode()) return demoApplicantStore;
- const rows=await prisma.applicant.findMany({include:{agent:true},orderBy:{createdAt:'desc'}});
+ const rows=await prisma.applicant.findMany({where:agentId?{agentId}:undefined,include:{agent:true},orderBy:{createdAt:'desc'}});
  return rows.map(a=>({id:a.id,name:a.name,phone:a.phone,request:dealLabel[a.requestType],budget:a.budgetMax?`${Number(a.budgetMax)/1_000_000_000} میلیارد`:'توافقی',urgency:urgencyLabel(a.urgency),agent:a.agent.name,notes:a.notes??''}));
 }
 export async function createApplicant(input:ApplicantInput):Promise<ApplicantItem>{
@@ -37,4 +41,8 @@ export async function createApplicant(input:ApplicantInput):Promise<ApplicantIte
  const a=await prisma.applicant.create({data:{name:input.name,phone:input.phone,requestType:input.requestType,budgetMax:input.budgetMax?input.budgetMax*1_000_000_000:null,cities:[],districts:[],propertyTypes:[],requiredFeatures:[],urgency:input.urgency??1,notes:input.notes||null,agentId},include:{agent:true}});
  return {id:a.id,name:a.name,phone:a.phone,request:dealLabel[a.requestType],budget:a.budgetMax?`${Number(a.budgetMax)/1_000_000_000} میلیارد`:'توافقی',urgency:urgencyLabel(a.urgency),agent:a.agent.name,notes:a.notes??''};
 }
-export async function deleteApplicant(id:string){if(isDemoMode()){demoApplicantStore=demoApplicantStore.filter(x=>x.id!==id);return;}await prisma.applicant.delete({where:{id}});}
+export async function deleteApplicant(id:string,agentId?:string){
+ if(isDemoMode()){demoApplicantStore=demoApplicantStore.filter(x=>x.id!==id);return;}
+ if(agentId){const owned=await prisma.applicant.findFirst({where:{id,agentId},select:{id:true}});if(!owned)throw new Error('FORBIDDEN_OR_NOT_FOUND');}
+ await prisma.applicant.delete({where:{id}});
+}
