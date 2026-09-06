@@ -3,7 +3,12 @@ export { auth as middleware } from './auth';
 export const config = {
   matcher: [
     '/dashboard/:path*',
-    '/settings/:path*',
-    '/api/protected/:path*'
+    '/properties/:path*',
+    '/owners/:path*',
+    '/applicants/:path*',
+    '/followups/:path*',
+    '/contracts/:path*',
+    '/reports/:path*',
+    '/settings/:path*'
   ],
 };
