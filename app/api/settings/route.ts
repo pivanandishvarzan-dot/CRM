@@ -29,11 +29,7 @@ export async function GET(){
       actor.role==='SYSTEM_ADMIN'
         ? prisma.agency.findFirst({orderBy:{createdAt:'asc'}})
         : prisma.agency.findUnique({where:{id:actor.agencyId!}}),
-      prisma.user.findMany({
-        where:actor.role==='SYSTEM_ADMIN'?undefined:{agencyId:actor.agencyId!},
-        select:{id:true,name:true,email:true,role:true,agencyId:true},
-        orderBy:{createdAt:'asc'}
-      }),
+      prisma.user.findMany({where:actor.role==='SYSTEM_ADMIN'?undefined:{agencyId:actor.agencyId!},select:{id:true,name:true,email:true,role:true,agencyId:true},orderBy:{createdAt:'asc'}}),
     ]);
     return NextResponse.json({data:{mode:'database',agency,users}});
   }catch(error){
@@ -77,12 +73,10 @@ export async function PATCH(request:Request){
         if(!actor.agencyId||target.agencyId!==actor.agencyId)throw new ApiAccessError(403,'امکان مدیریت کاربر آژانس دیگر وجود ندارد');
         if(role==='SYSTEM_ADMIN'||target.role==='SYSTEM_ADMIN')throw new ApiAccessError(403,'فقط مدیر سیستم می‌تواند نقش مدیر سیستم را تغییر دهد');
       }
-      if(actor.id===target.id&&target.role==='SYSTEM_ADMIN'&&role!=='SYSTEM_ADMIN'){
-        throw new ApiAccessError(403,'مدیر سیستم نمی‌تواند نقش خودش را کاهش دهد');
-      }
+      if(actor.id===target.id&&target.role==='SYSTEM_ADMIN'&&role!=='SYSTEM_ADMIN')throw new ApiAccessError(403,'مدیر سیستم نمی‌تواند نقش خودش را کاهش دهد');
       if(target.role==='SYSTEM_ADMIN'&&role!=='SYSTEM_ADMIN'){
         const systemAdminCount=await prisma.user.count({where:{role:'SYSTEM_ADMIN'}});
-        if(systemAdminCount<=1)throw new ApiAccessError(409 as 403,'حداقل یک مدیر سیستم باید باقی بماند');
+        if(systemAdminCount<=1)throw new ApiAccessError(403,'حداقل یک مدیر سیستم باید باقی بماند');
       }
       const user=await prisma.user.update({where:{id},data:{role},select:{id:true,name:true,email:true,role:true,agencyId:true}});
       return NextResponse.json({data:user});
