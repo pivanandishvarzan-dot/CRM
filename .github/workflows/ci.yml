@@ -1,19 +1,28 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/crm?schema=public
       DEMO_MODE: "true"
       AUTH_SECRET: ci-only-secret-not-for-production
+      AUTH_TRUST_HOST: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,11 +36,14 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
       - name: Generate Prisma client
         run: npm run prisma:generate
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build
+      - name: Production build
         run: npm run build
