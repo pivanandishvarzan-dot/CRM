@@ -1,9 +1,11 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import authConfig from './auth.config';
 import {prisma} from '@/lib/prisma';
 import {hashPassword,verifyPassword} from '@/lib/password';
 
 export const {handlers,auth,signIn,signOut}=NextAuth({
+  ...authConfig,
   providers:[Credentials({
     credentials:{email:{},password:{}},
     async authorize(credentials){
@@ -24,18 +26,13 @@ export const {handlers,auth,signIn,signOut}=NextAuth({
     }
   })],
   callbacks:{
+    ...authConfig.callbacks,
     async jwt({token,user}){
-      if(user){
-        token.userId=user.id;
-        token.role=user.role;
-      }
+      if(user){token.userId=user.id;token.role=user.role;}
       return token;
     },
     async session({session,token}){
-      if(session.user){
-        session.user.id=String(token.userId??'');
-        session.user.role=token.role as typeof session.user.role;
-      }
+      if(session.user){session.user.id=String(token.userId??'');session.user.role=token.role as typeof session.user.role;}
       return session;
     }
   }
