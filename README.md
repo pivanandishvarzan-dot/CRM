@@ -1,18 +1,20 @@
 # خانه‌یار — CRM فارسی املاک
 
-یک وب‌اپلیکیشن مدرن، راست‌چین و واکنش‌گرا برای مدیریت روزانه آژانس املاک. داشبورد تحلیلی، ملک‌ها، مالک‌ها، متقاضی‌ها، پیگیری‌ها، قراردادها و گزارش عملکرد تیم در نسخه نمایشی بدون هیچ سرویس خارجی در دسترس‌اند.
+خانه‌یار یک CRM راست‌چین و واکنش‌گرا برای مدیریت آژانس املاک است. نسخه فعلی علاوه بر Demo Mode، لایه‌های واقعی API/Repository، PostgreSQL/Prisma، Auth.js، RBAC، multi-tenancy آژانس، قراردادها، گزارش‌ها و migration دیتابیس را دارد.
 
-## امکانات
+## امکانات اصلی
 
-- داشبورد KPI، نمودار ارزش معاملات و وضعیت ملک‌ها، آخرین ملک‌ها و عملکرد مشاوران
-- مدیریت ملک با نمای کارت/جدول، جست‌وجو، فیلتر، افزودن، حذف تأییدی و پرونده کامل
-- پرونده مالک و متقاضی با مسئول، تماس، نیازمندی و پیشنهادهای متناسب
-- پیگیری تماس، پیام، جلسه، بازدید و وظیفه با اولویت و زمان‌بندی
-- قرارداد، مبلغ، کمیسیون، پرداخت و گزارش نرخ تبدیل
-- طراحی کامل RTL، منوی موبایل، حالات loading/error/empty و focus قابل دسترس
-- مدل داده PostgreSQL/Prisma و نقش‌های `SYSTEM_ADMIN`، `AGENCY_MANAGER` و `AGENT`
+- داشبورد KPI و وضعیت ملک‌ها
+- مدیریت ملک، مالک، متقاضی و پرونده ملک
+- پیگیری تماس، پیام، جلسه، بازدید و وظیفه
+- قرارداد، کمیسیون و وضعیت قرارداد
+- گزارش عملکرد و رتبه‌بندی مشاوران
+- نقش‌های `SYSTEM_ADMIN`، `AGENCY_MANAGER` و `AGENT`
+- جداسازی داده‌ها در سطح آژانس و سطح مشاور برای بخش‌های حساس
+- Demo Mode مستقل از دیتابیس
+- migration کنترل‌شده Prisma برای Production
 
-## اجرای سریع (Demo Mode)
+## اجرای سریع در Demo Mode
 
 پیش‌نیاز: Node.js 20 یا جدیدتر.
 
@@ -22,45 +24,100 @@ cp .env.example .env.local
 npm run dev
 ```
 
-سپس `http://localhost:3000` را باز کنید. حتی بدون `.env.local` رابط با داده‌های ساختگی فارسی اجرا می‌شود و هیچ شماره یا اطلاعات واقعی در آن نیست. برای build تولیدی:
+اگر `DATABASE_URL` تنظیم نشده باشد یا `DEMO_MODE` برابر `false` نباشد، برنامه در Demo Mode اجرا می‌شود.
+
+## اجرای Production
+
+متغیرهای اصلی:
+
+```env
+DEMO_MODE=false
+DATABASE_URL=postgresql://...
+AUTH_SECRET=...
+AUTH_TRUST_HOST=true
+```
+
+سپس:
 
 ```bash
+npm install
+npm run prisma:generate
+npm run prisma:migrate:status
+npm run prisma:migrate:deploy
 npm run typecheck
-npm run lint
 npm run build
 npm start
 ```
 
-## اتصال PostgreSQL و Prisma
+> اگر دیتابیس قبلاً با `prisma db push` ساخته شده، قبل از اولین `prisma migrate deploy` باید وضعیت baseline/migration history بررسی شود. migration فعلی فقط تغییرات جدید schema را اعمال می‌کند و جایگزین بررسی baseline نیست.
 
-1. یک دیتابیس PostgreSQL بسازید و `DATABASE_URL` را مطابق `.env.example` در `.env.local` قرار دهید.
-2. `DEMO_MODE=false` را تنظیم کنید.
-3. مدل‌ها را اعمال کنید:
+## احراز هویت و دسترسی
 
-```bash
-npx prisma generate
-npx prisma migrate dev --name init
+Auth.js با Credentials فعال است. رمزها با PBKDF2 ذخیره می‌شوند و middleware مسیرهای CRM را در Production محافظت می‌کند. اطلاعات کاربر و نقش در Shell از session واقعی خوانده می‌شود. Demo Mode fallback نمایشی جداگانه دارد.
+
+سطوح دسترسی:
+
+- `SYSTEM_ADMIN`: دسترسی سراسری
+- `AGENCY_MANAGER`: مدیریت داده‌های آژانس خود، کاربران، تنظیمات، قرارداد و گزارش‌ها
+- `AGENT`: دسترسی به عملیات روزمره و داده‌های مجاز مشاور
+
+## Prisma
+
+فایل اصلی schema:
+
+```text
+prisma/schema.prisma
 ```
 
-Schema در `prisma/schema.prisma` شامل کاربران و نقش‌ها، آژانس، ملک، مالک، متقاضی، پیگیری و قرارداد است. برای محصول واقعی یک repository/service layer بسازید تا منبع داده نمایشی با Prisma جایگزین شود.
+migrationها:
 
-## فعال‌سازی Auth.js
+```text
+prisma/migrations/
+```
 
-1. با `openssl rand -base64 32` مقدار امن `AUTH_SECRET` تولید کنید؛ آن را commit نکنید.
-2. Provider موردنظر (Credentials یا OAuth) را در `auth.ts` اضافه کنید.
-3. برای Credentials، رمز را فقط به‌صورت hash ذخیره و اعتبارسنجی کنید؛ برای OAuth، شناسه و secret را در Environment Variables بگذارید.
-4. route استاندارد Auth.js را از `handlers` صادر و middleware محافظت از مسیرها را اضافه کنید. در حالت نمایشی، Shell عمداً کاربر نمونه «مهدی اکبری» را نشان می‌دهد تا نبود secret باعث crash نشود.
+دستورات مفید:
 
-## استقرار روی Vercel
+```bash
+npm run prisma:generate
+npm run prisma:migrate:status
+npm run prisma:migrate:deploy
+```
 
-Repository را در Vercel Import کنید، Framework را Next.js بگذارید و برای Preview نمایشی فقط `DEMO_MODE=true` را تعریف کنید. برای Production، `DATABASE_URL`، `AUTH_SECRET` و `AUTH_TRUST_HOST=true` را در Project Settings اضافه و migration را در pipeline اجرا کنید. Build Command همان `npm run build` است.
+## استقرار روی Vercel یا سرور Node
 
-## ساختار
+برای Production، Environment Variables بالا را تنظیم کنید. Build Command:
 
-- `app/`: routeهای App Router، layout و وضعیت‌های خطا/بارگذاری
-- `components/`: Shell، داشبورد و صفحات تعاملی قابل استفاده مجدد
-- `lib/demo-data.ts`: داده‌های ساختگی امن و فارسی
-- `prisma/schema.prisma`: مدل آماده PostgreSQL
-- `auth.ts`: نقطه توسعه Auth.js
+```bash
+npm run prisma:generate && npm run build
+```
 
-> این نسخه frontend-first و Demo Mode است. عملیات فرم‌ها در حافظه مرورگر قابل مشاهده‌اند و پس از refresh بازنشانی می‌شوند؛ برای ماندگاری، service layer را به Prisma متصل کنید.
+Migration بهتر است به‌عنوان مرحله جداگانه قبل از rollout اجرا شود:
+
+```bash
+npm run prisma:migrate:deploy
+```
+
+برای Preview نمایشی می‌توان فقط `DEMO_MODE=true` را استفاده کرد.
+
+## کنترل کیفیت قبل از Release
+
+حداقل این مسیرها باید بررسی شوند:
+
+```bash
+npm run prisma:generate
+npm run typecheck
+npm run build
+```
+
+و به‌صورت دستی:
+
+- Login و Logout
+- دسترسی Roleها
+- CRUD ملک
+- ثبت/حذف مالک و متقاضی
+- پیگیری‌ها
+- قراردادها
+- گزارش‌ها
+- جداسازی داده بین آژانس‌ها
+
+CI پروژه همین validationهای اصلی را اجرا می‌کند؛ تا زمانی که یک workflow موفق ثبت نشده، نباید Build را تأییدشده فرض کرد.
